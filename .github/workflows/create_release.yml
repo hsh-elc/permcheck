@@ -1,0 +1,72 @@
+name: Create Release
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - 'develop'
+      - 'master'
+  
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Create Release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repo
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'adopt'
+          cache: maven
+
+      - name: Set Release version env variable
+        run: |
+          echo "RELEASE_VERSION=$(mvn help:evaluate -Dexpression=project.version -q -DforceStdout)" >> $GITHUB_ENV
+
+      - name: Build with Maven
+        run: |
+          mvn --batch-mode --update-snapshots --also-make clean package -DskipTests
+
+      - name: Provide files
+        run: |
+          destdir="${RUNNER_TEMP}/dist/"
+          mkdir "$destdir"
+          reponame="${GITHUB_REPOSITORY#*/}"
+          release=${{ env.RELEASE_VERSION }}
+          for suffix in ".jar" "-tests.jar" "-jar-with-dependencies.jar" do;
+              jarname=target/$reponame-${release}$suffix.jar
+              if [ -e $jarname ];  then
+                  cp -v $jarname "$destdir"
+              fi
+          done
+          cp -v pom.xml "$destdir/$reponame-${release}.pom"
+
+      - name: Create release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Get branch name and repace special chars into "-"
+          BRANCH=$(echo ${{ github.ref_name }} | sed 's/[^a-zA-Z0-9]/-/g')
+          STAMP=$(TZ=Europe/Berlin date +%0Y%0m%0d-%0H%0M%0S)
+          echo "-current branch: '${BRANCH}'"
+          if [[ "$BRANCH" == "master" ]]; then
+            THE_TAG="${{ env.RELEASE_VERSION }}"
+            gh release create "v$THE_TAG" \
+              --verify-tag \
+              --repo="$GITHUB_REPOSITORY" \
+              --title="${GITHUB_REPOSITORY#*/}-$THE_TAG" \
+              "${RUNNER_TEMP}/dist/*"
+          else
+            THE_TAG="${{ env.RELEASE_VERSION }}-${BRANCH}-${STAMP}"
+            gh release create "v$THE_TAG" \
+              --draft --prerelease \
+              --repo="$GITHUB_REPOSITORY" \
+              --title="${GITHUB_REPOSITORY#*/}-$THE_TAG" \
+              "${RUNNER_TEMP}/dist/*"
+          fi
