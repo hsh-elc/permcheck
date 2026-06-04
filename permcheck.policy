@@ -181,6 +181,10 @@ distrust.regex main\.TestMain\$[0-9]*TestCase[^\$]*
 # Static initializers are specified literally as #<clinit>
 
 privilege java.base/java.lang.ProcessHandleImpl#<clinit>
+privilege java.base/java.lang.ProcessImpl#<init>
+privilege java.base/java.lang.ProcessImpl#initStreams
+privilege java.base/java.lang.ProcessImpl$Platform#launchMechanism
+privilege java.base/java.lang.ProcessImpl#launchMechanism
 privilege java.base/java.lang.invoke.InnerClassLambdaMetafactory#buildCallSite                
 privilege java.base/java.lang.StackWalker#<clinit>
 privilege java.base/java.lang.System#getLogger
@@ -194,6 +198,7 @@ privilege java.desktop/java.awt.Desktop#getDesktop
 privilege java.base/jdk.internal.util.random.RandomSupport#secureRandomSeedRequested
 privilege java.base/jdk.internal.logger.AbstractLoggerWrapper#isLoggable
 privilege java.base/jdk.internal.loader.BuiltinClassLoader#findClassOnClassPathOrNull
+privilege java.base/jdk.internal.loader.BootLoader#loadLibrary
 privilege java.base/sun.util.calendar.ZoneInfoFile#<clinit>
 #privilege java.base/sun.security.action.GetPropertyAction#privilegedGetProperty <-- shouldn't include any deprecated methods
 #privilege java.base/java.security.AccessController#doPrivileged <-- shouldn't include any deprecated methods

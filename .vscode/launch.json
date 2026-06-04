@@ -28,7 +28,7 @@
         },
         {
             "type": "java",
-            "javaExec": "C:\\PROGRA~1\\Java\\jdk-24\\bin\\java.exe",
+            "javaExec": "C:\\PROGRA~1\\Java\\TemurinJDK-24\\bin\\java.exe",
             "name": "Main4 on Java 24",
             "request": "launch",
             "mainClass": "main.TestMain",

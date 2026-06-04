@@ -2,6 +2,26 @@
 
 set -v
 
+pwd
+ls -a
+ls -a target
+
+case "$OSTYPE" in
+  solaris*) pathsep=":" ;;
+  darwin*)  pathsep=":" ;; 
+  linux*)   pathsep=":" ;;
+  bsd*)     pathsep=":" ;;
+  msys*)    pathsep="\;" ;;
+  cygwin*)  pathsep="\;" ;;
+  *)        echo "unknown: $OSTYPE" ;;
+esac
+
+release=$1
+
+if [[ -z "${release}" ]]; then
+  release=$(mvn help:evaluate -Dexpression=project.version -q -DforceStdout)
+fi
+
 if [[ -z "${JAVA_HOME_17_X64}" ]]; then
   JAVA_HOME_17_X64=C:/PROGRA~1/Java/jdk-17
 fi
@@ -38,7 +58,7 @@ $JAVA_HOME_17_EXEC \
   -XX:-EnableDynamicAgentLoading -Xshare:off -ea \
   -Dnet.bytebuddy.safe=true -javaagent:lib/byte-buddy-agent-1.15.11.jar \
   --add-reads java.base=ALL-UNNAMED \
-  -cp target/permcheck-0.0.1-SNAPSHOT.jar\;target/permcheck-0.0.1-SNAPSHOT-tests.jar\;lib/byte-buddy-1.15.11.jar\;lib/byte-buddy-agent-1.15.11.jar\;lib/junit-4.12.jar\;lib/hamcrest-core-1.3.jar \
+  -cp target/permcheck-${release}.jar${pathsep}target/permcheck-${release}-tests.jar${pathsep}lib/byte-buddy-1.15.11.jar${pathsep}lib/byte-buddy-agent-1.15.11.jar${pathsep}lib/junit-4.12.jar${pathsep}lib/hamcrest-core-1.3.jar \
   main.TestMain \
   --permcheck.policy permcheck.policy \
   || exit 1
@@ -50,7 +70,7 @@ $JAVA_HOME_17_EXEC \
   -XX:-EnableDynamicAgentLoading -Xshare:off -ea \
   -Dnet.bytebuddy.safe=true -javaagent:lib/byte-buddy-agent-1.15.11.jar \
   --add-reads java.base=ALL-UNNAMED \
-  -cp target/classes\;target/test-classes\;lib/byte-buddy-1.15.11.jar\;lib/byte-buddy-agent-1.15.11.jar\;lib/junit-4.12.jar\;lib/hamcrest-core-1.3.jar \
+  -cp target/classes${pathsep}target/test-classes${pathsep}lib/byte-buddy-1.15.11.jar${pathsep}lib/byte-buddy-agent-1.15.11.jar${pathsep}lib/junit-4.12.jar${pathsep}lib/hamcrest-core-1.3.jar \
   main.TestMain \
   --permcheck.policy permcheck.policy \
   || exit 1
@@ -62,7 +82,7 @@ $JAVA_HOME_24_EXEC \
   --sun-misc-unsafe-memory-access=deny \
   -Dnet.bytebuddy.safe=true -javaagent:lib/byte-buddy-agent-1.15.11.jar \
   --add-reads java.base=ALL-UNNAMED \
-  -cp target/permcheck-0.0.1-SNAPSHOT.jar\;target/permcheck-0.0.1-SNAPSHOT-tests.jar\;lib/byte-buddy-1.15.11.jar\;lib/byte-buddy-agent-1.15.11.jar\;lib/junit-4.12.jar\;lib/hamcrest-core-1.3.jar \
+  -cp target/permcheck-${release}.jar${pathsep}target/permcheck-${release}-tests.jar${pathsep}lib/byte-buddy-1.15.11.jar${pathsep}lib/byte-buddy-agent-1.15.11.jar${pathsep}lib/junit-4.12.jar${pathsep}lib/hamcrest-core-1.3.jar \
   main.TestMain \
   --permcheck.policy permcheck.policy \
   || exit 1

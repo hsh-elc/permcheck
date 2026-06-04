@@ -57,7 +57,7 @@ jobs:
 
       - name: Run tests
         run: |
-          bash runtests.sh
+          bash runtests.sh ${{ env.RELEASE_VERSION }}
 
       - name: Provide files
         run: |

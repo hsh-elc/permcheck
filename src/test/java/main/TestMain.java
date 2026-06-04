@@ -2563,6 +2563,11 @@ public class TestMain {
                         // shouldn't happen
                         throw new AssertionError("Internal error in TestCase", e);
                     }
+                } else {
+                    // Cannot test this on this platform.
+                    setExpectedException(null);
+                    setExpectedMsg(null);
+                    return Math.sqrt(x);
                 }
                 return 0.0;
             }
