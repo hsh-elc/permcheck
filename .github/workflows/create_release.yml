@@ -16,7 +16,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Download Maven
         # source: https://github.com/nektos/act/issues/161#issuecomment-2197376079
@@ -34,14 +34,14 @@ jobs:
           fi
           
       - name: Set up JDK 17
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           java-version: '17'
           distribution: 'adopt'
           cache: maven
 
       - name: Set up JDK 24
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           java-version: '24'
           distribution: 'adopt'
