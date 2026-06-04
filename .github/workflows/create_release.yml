@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
   push:
     branches:
-      - 'develop'
+      #- 'develop'
       - 'master'
   
 permissions:
@@ -18,10 +18,25 @@ jobs:
       - name: Checkout Repo
         uses: actions/checkout@v4
 
-      - name: Set up JDK 17
+      - name: Download Maven
+        # source: https://github.com/nektos/act/issues/161#issuecomment-2197376079
+        run: |
+          if ! command -v mvn -v >/dev/null 2>&1
+          then
+            echo "installing mvn"
+            curl -sL https://downloads.apache.org/maven/maven-3/3.9.16/binaries/apache-maven-3.9.16-bin.zip -o maven.zip
+            apt-get update
+            apt-get -y install unzip
+            unzip -d /usr/share maven.zip
+            rm maven.zip
+            ln -s /usr/share/apache-maven-3.9.16/bin/mvn /usr/bin/mvn
+            echo "M2_HOME=/usr/share/apache-maven-3.9.16" | tee -a /etc/environment
+          fi
+          
+      - name: Set up JDK 24
         uses: actions/setup-java@v4
         with:
-          java-version: '17'
+          java-version: '24'
           distribution: 'adopt'
           cache: maven
 
@@ -39,13 +54,14 @@ jobs:
           mkdir "$destdir"
           reponame="${GITHUB_REPOSITORY#*/}"
           release=${{ env.RELEASE_VERSION }}
-          for suffix in ".jar" "-tests.jar" "-jar-with-dependencies.jar" do;
-              jarname=target/$reponame-${release}$suffix.jar
+          for suffix in ".jar" "-tests.jar" "-jar-with-dependencies.jar"
+          do
+              jarname="target/$reponame-$release$suffix"
               if [ -e $jarname ];  then
                   cp -v $jarname "$destdir"
               fi
           done
-          cp -v pom.xml "$destdir/$reponame-${release}.pom"
+          cp -v pom.xml "$destdir/$reponame-$release.pom"
 
       - name: Create release
         env:
