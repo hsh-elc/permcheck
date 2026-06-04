@@ -1,0 +1,52 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "java",
+            "name": "Main4 on Java 17",
+            "request": "launch",
+            "mainClass": "main.TestMain",
+            "vmArgs": [
+                "-Djava.security.manager",
+                "-Djava.security.policy==security.policy",
+                "-XX:-EnableDynamicAgentLoading",
+                "-Xshare:off",
+                "-Dnet.bytebuddy.safe=true",
+                "-ea",
+                "-javaagent:lib/byte-buddy-agent-1.15.11.jar",
+                "--add-reads", "java.base=ALL-UNNAMED"
+            ],
+            "args": [
+                "--permcheck.policy", "permcheck.policy",
+                "--permcheck.tmpfolder", "C:/cygwin64/tmp/de.hsh.permcheck.tmpfolderforbootstrapinjection"
+            ],
+            "shortenCommandLine": "none"
+            
+        },
+        {
+            "type": "java",
+            "javaExec": "C:\\PROGRA~1\\Java\\jdk-24\\bin\\java.exe",
+            "name": "Main4 on Java 24",
+            "request": "launch",
+            "mainClass": "main.TestMain",
+            "vmArgs": [
+                "-XX:-EnableDynamicAgentLoading",
+                "-Xshare:off",
+                "--sun-misc-unsafe-memory-access=deny",
+                "-Dnet.bytebuddy.safe=true",
+                "-ea",
+                "-javaagent:lib/byte-buddy-agent-1.15.11.jar",
+                "--add-reads", "java.base=ALL-UNNAMED"
+            ],
+            "args": [
+                "--permcheck.policy", "permcheck.policy",
+                "--permcheck.tmpfolder", "C:/cygwin64/tmp/de.hsh.permcheck.tmpfolderforbootstrapinjection"
+            ],
+            "shortenCommandLine": "none"
+            
+        }
+    ]
+}

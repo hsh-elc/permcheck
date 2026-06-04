@@ -1,5 +1,16 @@
+# Eclipse Project Files
+.classpath
+.project
+.settings/
+
+# Intellij Project Files
+.idea/
+*.iml
+
 # Compiled class file
 *.class
+/bin/
+/target/
 
 # Log file
 *.log

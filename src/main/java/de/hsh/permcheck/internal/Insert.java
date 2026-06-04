@@ -1,0 +1,51 @@
+package de.hsh.permcheck.internal;
+
+public abstract class Insert implements Logger {
+
+
+    /**
+     * Can be overriden by subclasses
+     * @return truee by default.
+     */
+    public boolean callOnExitFromDistrustedCodeOnly() {
+        return true;
+    }
+
+    /**
+     * This method will be called only, if there is an untrusted class on the call stack and
+     * no privilege method in between.
+     * @param hook
+     */
+    public final void onEnter(Hook hook) {
+        if (Specs.verboseTrace()) {
+            System.out.println("[PERMCHECK] ----PermCheckLogger------------------------------");
+            StringBuilder msg = new StringBuilder();
+            msg.append(hook.pretty());
+            System.out.println("[PERMCHECK] "+ msg.toString());
+
+            System.out.println("[PERMCHECK] Stacktrace:");
+            for (StackTraceElement e : Thread.currentThread().getStackTrace()) {
+                System.out.println("[PERMCHECK] \t" + e);
+            }
+        }
+        onEnterImpl(hook);
+    }
+
+    public void onEnterImpl(Hook hook) {
+        // do nothing by default
+    }
+
+    public final void onExit(Hook hook, Object result) {
+        onExitImpl(hook, result);
+    }
+
+    public void onExitImpl(Hook hook, Object result) {
+        // do nothing by default
+    }
+
+    public void log(VerboseCategory vc, String msg) {
+        if (Specs.include(vc)) {
+            System.out.println(msg);
+        }
+    }
+}

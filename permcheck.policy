@@ -1,0 +1,230 @@
+# UTF-8 encoded file
+# Comment lines begin with # or ! in the first column
+# Empty lines are ignored
+# Keys must start in column one. The key is separated from the value with a single space character.
+# The rest of the line is the value of the key
+# Keys can be specified several times. Then the key has a value that is built as a list of all values.
+# Keys without a value are so-called marker keys. These keys do not specify a value.
+
+# Enable verbose output during Byte Buddy installation
+# or Byte Buddy transformation and during permission initialisation
+# or permission checks. Valid comma-separated actions are
+#   install,transform,permit,trace
+# In order switch off an action, you can specify a "no-", i. e.
+#   verbose install,no-transform,permit,no-trace
+# is a valid spec.
+verbose no-install,no-transform,no-permit,no-trace
+#verbose install,transform,permit,trace
+
+# Prevent VM exit (marker key):
+deny.exitVm
+
+# Marker key to prevent setAccess calls
+deny.reflectionSetAccessible
+
+# Marker key to prevent access to declared members
+deny.reflectionAccessDeclaredMembers
+
+# Marker key to prevent access to stacktrace of foreign threads
+deny.reflectionGetStackTrace
+
+# Marker key to prevent access to stacktrace of foreign threads
+deny.reflectionGetStackWalkerWithClassReference
+
+# Marker key to prevent querying the classloader of arbitrary classes
+deny.reflectionGetClassLoader
+
+# Marker key to initiate any file permission checks
+# If missing, no file access will be checked
+deny.fileExceptSpecifiedPermissions
+
+# Syntax: permit.file <pattern> | <actions>
+# The <pattern> is specified in the "glob" syntax as specified in
+# https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/nio/file/FileSystem.html#getPathMatcher(java.lang.String)
+# Backslashes as directory separators MUST be specified as forward slashes
+# The <actions> is a comma-separated list of the keywords read,write,execute,delete
+# As part of the <pattern> you can specify placeholders for system properties. The syntax is
+#   ${{property.name}}
+# Properties will be replaced before matching. If the referenced system property cannot be resolved, an
+# exception is thrown.
+
+permit.file ${{java.io.tmpdir}}/testpermcheck/r | read
+permit.file ${{java.io.tmpdir}}/testpermcheck/r/** | read
+permit.file ${{java.io.tmpdir}}/testpermcheck/rw | read,write
+permit.file ${{java.io.tmpdir}}/testpermcheck/rw/** | read,write
+permit.file ${{java.io.tmpdir}}/testpermcheck/w | write
+permit.file ${{java.io.tmpdir}}/testpermcheck/w/** | write
+permit.file ${{java.io.tmpdir}}/testpermcheck/rwx/** | read,write,execute
+permit.file ${{java.io.tmpdir}}/testpermcheck/x/** | execute
+permit.file ${{java.io.tmpdir}}/testpermcheck/rx/** | read,execute
+permit.file ${{java.io.tmpdir}}/testpermcheck/d/** | delete
+permit.file ${{java.io.tmpdir}}/testpermcheck/rd/** | read,delete
+
+# Typical permissions for student submission might be:
+# - Allow write to temp dir and subdirs (** matches also files in subdirectories):
+#   permit.file ${{java.io.tmpdir}}/** | write
+# - Allow file operations in user's home dir
+#   permit.file ${{user.home}}/** | read,write,delete
+
+# Marker key to initiate any property permission checks
+# If missing, no property access will be checked
+deny.propertyExceptSpecifiedPermissions
+
+# Syntax: permit.property <name> | <actions>
+# The <name> is the name of the given permission (for example, "os.name").
+# The naming convention follows the  hierarchical property naming convention.
+# An asterisk may appear by itself, or if immediately preceded by a "."
+# may appear at the end of the name, to signify a wildcard match.
+# For example, "*" and "java.*" signify a wildcard match, while "*java", "a*b",
+# and "java*" do not.
+# The <actions> is a comma-separated list of the keywords read,write
+
+# Testcases:
+permit.property allowed.to.write.* | write
+permit.property allowed.to.read.* | read
+
+# Typical permissions for student submission might be the follwoing
+# "standard" properties that can be read by anyone:
+permit.property java.version | read
+permit.property java.vendor | read
+permit.property java.vendor.url | read
+permit.property java.class.version | read
+permit.property os.name | read
+permit.property os.version | read
+permit.property os.arch | read
+permit.property file.separator | read
+permit.property path.separator | read
+permit.property line.separator | read
+permit.property java.specification.version | read
+permit.property java.specification.vendor | read
+permit.property java.specification.name | read
+permit.property java.vm.specification.version | read
+permit.property java.vm.specification.vendor | read
+permit.property java.vm.specification.name | read
+permit.property java.vm.version | read
+permit.property java.vm.vendor | read
+permit.property java.vm.name | read
+
+# These ones are queried by ProcessBuilder or FileSystems.getDefault().newWatchService(), 
+# which are part of some test cases,
+# so we grant reading for test purposes. If a submission is allowed to execute 
+# subprocesses or to create a WatchService, these properties need to be granted to the submission:
+permit.property jdk.lang.Process.allowAmbiguousCommands | read
+permit.property jdk.nio.file.WatchService.maxEventsPerPoll | read
+
+# Further permissions, that could be granted to student submissions,
+# but this reveals already information about the grading system:
+permit.property java.io.tmpdir | read
+permit.property java.home | read
+
+# Further permissions, that also could be granted to student submissions,
+# but that are denied in this test driver, since we want to test denial
+# for read access to user.language and user.timezone:
+#permit.property user.* | read
+
+# Marker key to initiate any environment permission checks
+# If missing, no environment access will be checked
+deny.envExceptSpecifiedPermissions
+
+# Typical permissions for student submission might be the follwoing
+# "standard" environment that can be read by anyone:
+permit.env LANG
+permit.env OS
+permit.env SHELL
+
+# List all potentially malicious classes. These classes will be identified on
+# the call stack and if found, then permission checks will take place.
+# Usually here one would specify a student submission like this with the
+# fully qualified classname:
+#
+#   distrust.plain subm.Submission
+#
+# A regex with a $.* at the end declares all local or anonymous classes as potentially malicous.
+# In a real scenario, where students submit code, this should be specified as distrusted too:
+# 
+#   distrust.regex subm\.Submission\$.*
+#
+# distrust.regex is evaluated against the whole classname, i. e. the specified regex is 
+# automatically enclosed in ^...$ by the permcheck library.
+# Alternatively specify all classes in a given package "subm" including nested classes:
+# 
+distrust.regex subm\.[^\.\$]+(\$[^\.\$]+)*
+#                     ^ classname starts here
+#                                ^ nested classes start here, possibly multiply nested
+
+
+# TestCases are examples of student submissions, so TestCases are distrusted code.
+# We specify all TestCases as distrusted here in the main class, where all TestCase objects are 
+# instantiated from classes nested into main.TestMain.
+# distrust.regex is evaluated against the whole classname, i. e. the specified regex is 
+# automatically enclosed in ^...$ by the permcheck library.
+distrust.regex main\.TestMain\$[0-9]*TestCase[^\$]*
+
+
+
+# Any code that is called in response of one of the following methods
+# is assumed to be trusted.
+# If we wouldn't trust these calls, then we would have to specify
+# e. g. permissions to read files like
+#   <javahome>/conf/security/java.security
+# or
+#  <javahome>/bin/net.dll
+# Privileges are a concept much like the AccessController.doPrivileged
+# concept of the SecurityManager.
+#
+# Privileges are specified in the format
+#   privilege <module>/<fully.qualified.classname>#<methodname>
+# e. g.
+#   privilege java.base/java.security.Security#initialize
+#
+# Constructors are specified literally as #<init>
+# Static initializers are specified literally as #<clinit>
+
+privilege java.base/java.lang.ProcessHandleImpl#<clinit>
+privilege java.base/java.lang.invoke.InnerClassLambdaMetafactory#buildCallSite                
+privilege java.base/java.lang.StackWalker#<clinit>
+privilege java.base/java.lang.System#getLogger
+privilege java.base/java.io.ObjectStreamClass#<init>
+privilege java.base/java.util.EnumSet#noneOf
+privilege java.base/java.security.Security#initialize
+privilege java.base/java.security.SecureRandom#<init>
+privilege java.base/java.security.SecureRandom#next
+privilege java.desktop/java.awt.Desktop#isDesktopSupported
+privilege java.desktop/java.awt.Desktop#getDesktop
+privilege java.base/jdk.internal.util.random.RandomSupport#secureRandomSeedRequested
+privilege java.base/jdk.internal.logger.AbstractLoggerWrapper#isLoggable
+privilege java.base/jdk.internal.loader.BuiltinClassLoader#findClassOnClassPathOrNull
+privilege java.base/sun.util.calendar.ZoneInfoFile#<clinit>
+#privilege java.base/sun.security.action.GetPropertyAction#privilegedGetProperty <-- shouldn't include any deprecated methods
+#privilege java.base/java.security.AccessController#doPrivileged <-- shouldn't include any deprecated methods
+privilege null/org.junit.runner.JUnitCore#run
+privilege java.compiler/javax.tools.ToolProvider#getSystemJavaCompiler
+privilege java.compiler/javax.tools.JavaCompiler#getStandardFileManager
+privilege jdk.compiler/com.sun.tools.javac.api.JavacTool#getStandardFileManager
+privilege jdk.compiler/com.sun.tools.javac.api.JavacTaskImpl#call
+
+# We assign privileges to all test factory methods, since these methods need
+# to prepare files and classes before instantiating TestCase objects.
+# The TestCase objects themselves are not privileged, since these operate
+# in null/main.TestMain$<N>TestCase*#apply
+privilege null/main.TestMain#collectTestCaseFactoryMethods
+privilege null/main.TestMain#runTestCase
+privilege null/main.TestMain#testFile
+privilege null/main.TestMain#testProperty
+privilege null/main.TestMain#testEnv
+privilege null/main.TestMain#testReflectionGetClassLoader
+privilege null/main.TestMain#testReflectionAccessDeclaredMembers
+privilege null/main.TestMain#testReflectionSetAccessible
+
+# The following methods from the Util class are intentionally called from within test 
+# cases and should get full privileges:
+privilege null/main.Util#fileCopy
+
+# In a real autograder scenario, the grader compiles a student submission and loads
+# the resulting bytecode. For this, the grader code needs permissions to write
+# bytecode to a file and load bytecode from a file. Instead of specifying these permissions
+# as "permit.file", it is easier to specify the grader code as "privilege", something
+# like this:
+# 
+#  privilege null/com.grader.Grader#runGrader
+# 
