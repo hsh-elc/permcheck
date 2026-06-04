@@ -1,0 +1,10 @@
+// https://sormuras.github.io/blog/2018-09-11-testing-in-the-modular-world.html
+
+//--add-modules
+//  junit
+//--add-opens
+//  de.hsh.permcheck/de.hsh.permcheck.internal=junit
+//--add-reads
+//  de.hsh.permcheck=junit
+//--add-reads
+//  de.hsh.permcheck=net.bytebuddy
