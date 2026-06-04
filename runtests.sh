@@ -2,8 +2,32 @@
 
 set -v
 
-JAVA_HOME_17_EXEC=C:/PROGRA~1/Java/jdk-17/bin/java.exe
-JAVA_HOME_24_EXEC=C:/PROGRA~1/Java/jdk-24/bin/java.exe
+if [[ -z "${JAVA_HOME_17_X64}" ]]; then
+  JAVA_HOME_17_X64=C:/PROGRA~1/Java/jdk-17
+fi
+if [[ -z "${JAVA_HOME_24_X64}" ]]; then
+  JAVA_HOME_24_X64=C:/PROGRA~1/Java/jdk-24
+fi
+
+JAVA_HOME_17_EXEC=${JAVA_HOME_17_X64}/bin/java.exe
+JAVA_HOME_24_EXEC=${JAVA_HOME_24_X64}/bin/java.exe
+
+if [ ! -f ${JAVA_HOME_17_EXEC} ]; then
+  JAVA_HOME_17_EXEC=${JAVA_HOME_17_X64}/bin/java
+fi
+if [ ! -f ${JAVA_HOME_24_EXEC} ]; then
+  JAVA_HOME_24_EXEC=${JAVA_HOME_24_X64}/bin/java
+fi
+
+if [ ! -f ${JAVA_HOME_17_EXEC} ]; then
+  echo "There is no Java 17 executable in ${JAVA_HOME_17_X64}"
+  exit 1
+fi
+if [ ! -f ${JAVA_HOME_24_EXEC} ]; then
+  echo "There is no Java 24 executable in ${JAVA_HOME_24_X64}"
+  exit 1
+fi
+
 
 mvn clean package -DskipTests || exit 1
 
