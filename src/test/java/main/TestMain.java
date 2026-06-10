@@ -66,7 +66,7 @@ import grader.TestRunner;
  */
 public class TestMain {
 
-    private static String PASSWORD = Long.toUnsignedString(new Random().nextLong());
+    private static final String PASSWORD = Long.toUnsignedString(new Random().nextLong());
 
     public static void main(String[] args) throws Exception {
         String tempFolderForBootstrapInjection = null;
