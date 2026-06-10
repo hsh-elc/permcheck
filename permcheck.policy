@@ -42,6 +42,7 @@ deny.fileExceptSpecifiedPermissions
 # The <pattern> is specified in the "glob" syntax as specified in
 # https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/nio/file/FileSystem.html#getPathMatcher(java.lang.String)
 # Backslashes as directory separators MUST be specified as forward slashes
+# Please note, that /path/to/dir/** does not match /path/to/dir
 # The <actions> is a comma-separated list of the keywords read,write,execute,delete
 # As part of the <pattern> you can specify placeholders for system properties. The syntax is
 #   ${{property.name}}
@@ -173,57 +174,54 @@ distrust.regex main\.TestMain\$[0-9]*TestCase[^\$]*
 # concept of the SecurityManager.
 #
 # Privileges are specified in the format
-#   privilege <module>/<fully.qualified.classname>#<methodname>
+#   privilege.plain <module>/<fully.qualified.classname>#<methodname>
 # e. g.
-#   privilege java.base/java.security.Security#initialize
+#   privilege.plain java.base/java.security.Security#initialize
 #
 # Constructors are specified literally as #<init>
 # Static initializers are specified literally as #<clinit>
 
-privilege java.base/java.lang.ProcessHandleImpl#<clinit>
-privilege java.base/java.lang.ProcessImpl#<init>
-privilege java.base/java.lang.ProcessImpl#initStreams
-privilege java.base/java.lang.ProcessImpl$Platform#launchMechanism
-privilege java.base/java.lang.ProcessImpl#launchMechanism
-privilege java.base/java.lang.invoke.InnerClassLambdaMetafactory#buildCallSite                
-privilege java.base/java.lang.StackWalker#<clinit>
-privilege java.base/java.lang.System#getLogger
-privilege java.base/java.io.ObjectStreamClass#<init>
-privilege java.base/java.util.EnumSet#noneOf
-privilege java.base/java.security.Security#initialize
-privilege java.base/java.security.SecureRandom#<init>
-privilege java.base/java.security.SecureRandom#next
-privilege java.desktop/java.awt.Desktop#isDesktopSupported
-privilege java.desktop/java.awt.Desktop#getDesktop
-privilege java.base/jdk.internal.util.random.RandomSupport#secureRandomSeedRequested
-privilege java.base/jdk.internal.logger.AbstractLoggerWrapper#isLoggable
-privilege java.base/jdk.internal.loader.BuiltinClassLoader#findClassOnClassPathOrNull
-privilege java.base/jdk.internal.loader.BootLoader#loadLibrary
-privilege java.base/sun.util.calendar.ZoneInfoFile#<clinit>
-#privilege java.base/sun.security.action.GetPropertyAction#privilegedGetProperty <-- shouldn't include any deprecated methods
-#privilege java.base/java.security.AccessController#doPrivileged <-- shouldn't include any deprecated methods
-privilege null/org.junit.runner.JUnitCore#run
-privilege java.compiler/javax.tools.ToolProvider#getSystemJavaCompiler
-privilege java.compiler/javax.tools.JavaCompiler#getStandardFileManager
-privilege jdk.compiler/com.sun.tools.javac.api.JavacTool#getStandardFileManager
-privilege jdk.compiler/com.sun.tools.javac.api.JavacTaskImpl#call
+privilege.plain java.base/java.lang.ProcessHandleImpl#<clinit>
+privilege.plain java.base/java.lang.ProcessImpl#<init>
+privilege.plain java.base/java.lang.ProcessImpl#initStreams
+privilege.plain java.base/java.lang.ProcessImpl$Platform#launchMechanism
+privilege.plain java.base/java.lang.ProcessImpl#launchMechanism
+privilege.plain java.base/java.lang.invoke.InnerClassLambdaMetafactory#buildCallSite                
+privilege.plain java.base/java.lang.StackWalker#<clinit>
+privilege.plain java.base/java.lang.System#getLogger
+privilege.plain java.base/java.io.ObjectStreamClass#<init>
+privilege.plain java.base/java.util.EnumSet#noneOf
+privilege.plain java.base/java.security.Security#initialize
+privilege.plain java.base/java.security.SecureRandom#<init>
+privilege.plain java.base/java.security.SecureRandom#next
+privilege.plain java.desktop/java.awt.Desktop#isDesktopSupported
+privilege.plain java.desktop/java.awt.Desktop#getDesktop
+privilege.plain java.base/jdk.internal.util.random.RandomSupport#secureRandomSeedRequested
+privilege.plain java.base/jdk.internal.logger.AbstractLoggerWrapper#isLoggable
+privilege.plain java.base/jdk.internal.loader.BuiltinClassLoader#findClassOnClassPathOrNull
+privilege.plain java.base/jdk.internal.loader.BootLoader#loadLibrary
+privilege.plain java.base/sun.util.calendar.ZoneInfoFile#<clinit>
+#privilege.plain java.base/sun.security.action.GetPropertyAction#privilegedGetProperty <-- shouldn't include any deprecated methods
+#privilege.plain java.base/java.security.AccessController#doPrivileged <-- shouldn't include any deprecated methods
+privilege.plain null/org.junit.runner.JUnitCore#run
+privilege.plain java.compiler/javax.tools.ToolProvider#getSystemJavaCompiler
+privilege.plain java.compiler/javax.tools.JavaCompiler#getStandardFileManager
+privilege.plain jdk.compiler/com.sun.tools.javac.api.JavacTool#getStandardFileManager
+privilege.plain jdk.compiler/com.sun.tools.javac.api.JavacTaskImpl#call
 
 # We assign privileges to many test factory methods, since these methods need
 # to prepare files and classes before instantiating TestCase objects.
 # The TestCase objects themselves are not privileged, since these operate
 # in null/main.TestMain$<N>TestCase*#apply
-privilege null/main.TestMain#collectTestCaseFactoryMethods
-privilege null/main.TestMain#runTestCase
-privilege null/main.TestMain#testFile
-privilege null/main.TestMain#testProperty
-privilege null/main.TestMain#testEnv
-privilege null/main.TestMain#testReflectionGetClassLoader
-privilege null/main.TestMain#testReflectionAccessDeclaredMembers
-privilege null/main.TestMain#testReflectionSetAccessible
+privilege.plain null/main.TestMain#collectTestCaseFactoryMethods
+privilege.plain null/main.TestMain#runTestCase
+privilege.regex null/main.TestMain#test[A-Za-z]+
+# Strictly speaking, these methods wouldn't need to be privileged, because they 
+# aren't called from untrusted code.
 
 # The following methods from the Util class are intentionally called from within test 
 # cases and should get full privileges:
-privilege null/main.Util#fileCopy
+privilege.plain null/main.Util#fileCopy
 
 # In a real autograder scenario, the grader compiles a student submission and loads
 # the resulting bytecode. For this, the grader code needs permissions to write
@@ -231,5 +229,14 @@ privilege null/main.Util#fileCopy
 # as "permit.file", it is easier to specify the grader code as "privilege", something
 # like this:
 # 
-#  privilege null/com.grader.Grader#runGrader
+#  privilege.regex null/com.grader.Grader#[\\p{L}\\p{Nl}\\p{Pc}][\\p{L}\\p{Nl}\\p{Pc}\\p{Nd}\\p{Mc}\\p{Mn}\\p{Cf}]*
 # 
+# The specified regex is automatically enclosed in ^...$ by the permcheck library.
+# We construct a regular expression for an arbitrary method name:
+# - First character is a LETTER \\p{L}, a LETTER_NUMBER \\p{Nl} or a CONNECTOR_PUNCTUATION character \\p{Pc}
+# - The following characters are LETTER, LETTER_NUMBER, CONNECTOR_PUNCTUATION or
+#     DECIMAL_DIGIT \\p{Nd} or COMBINING_SPACING_MARK \\p{Mc} or NON_SPACING_MARK \\p{Mn} or FORMAT character \\p{Cf}
+# Together:
+# [\\p{L}\\p{Nl}\\p{Pc}][\\p{L}\\p{Nl}\\p{Pc}\\p{Nd}\\p{Mc}\\p{Mn}\\p{Cf}]*
+#
+

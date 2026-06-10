@@ -110,8 +110,11 @@ public class Specs {
                 case "distrust.regex":
                     mySpecs.untrustedClasses.add("^"+value+"$");
                     break;
-                case "privilege":
+                case "privilege.plain":
                     mySpecs.addPrivilege(value);
+                    break;
+                case "privilege.regex":
+                    mySpecs.addPrivilege("^"+value+"$");
                     break;
                 default:
                     boolean processed = false;
@@ -160,7 +163,11 @@ public class Specs {
     public static boolean isPrivileged(String mcm) {
         for (String t : mySpecs.privilege) {
             if (t == null) break; // end of array
-            if (t.equals(mcm)) {
+            if (t.startsWith("^") && t.endsWith("$")) {
+                if (Pattern.matches(t, mcm)) {
+                    return true;
+                }
+            } else if (t.equals(mcm)) {
                 return true;
             }
         }
@@ -222,9 +229,20 @@ public class Specs {
         }
     }
 
-    protected static boolean isActive() {
+    static boolean isActive() {
         if (mySpecs == null) return false;
         return mySpecs.isActive;
+    }
+
+    public static Boolean isActive(String password) throws IllegalArgumentException {
+        if (mySpecs != null) {
+            if (mySpecs.password != null && mySpecs.password.equals(password))  {
+                return mySpecs.isActive;
+            } else {
+                throw new IllegalArgumentException("Illegal password passed to permcheck's isActive method");
+           }
+        }
+        return null;
     }
 
 }

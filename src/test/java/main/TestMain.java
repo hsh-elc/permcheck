@@ -115,6 +115,8 @@ public class TestMain {
         try {
             Start.configureByteBuddyAgentIfAny(policy, PASSWORD, tempFolderForBootstrapInjection);
 
+            //System.out.println("permcheck is active: " + Start.isActive(PASSWORD));
+
             JUnitCore junit = new JUnitCore();
 
             gradeSubmission(junit, PASSWORD);
@@ -166,7 +168,6 @@ public class TestMain {
         Arrays.sort(factories, (a, b) -> a.getName().compareTo(b.getName()));
         for (Method factory : factories) {
             if (factory.isAnnotationPresent(TestCaseFactory.class)) {
-//if (!factory.getName().equals("testEnv")) continue;
                 if (!Modifier.isStatic(factory.getModifiers())) {
                     throw new AssertionError("Internal error. @TestCaseFactory shouldn't be annotated to non-static method.");
                 }
@@ -281,9 +282,14 @@ public class TestMain {
                 super(null, null);
             }
             @Override public Double apply(Double x) {
-                Start.pause(PASSWORD); // successful attempt
-                System.getenv("PATH"); // granted, because permcheck was successfully paused
-                return Math.sqrt(x);
+                boolean isActive = Start.isActive(PASSWORD);
+                try {
+                    Start.pause(PASSWORD); // successful attempt
+                    System.getenv("PATH"); // granted, because permcheck was successfully paused
+                    return Math.sqrt(x);
+                } finally {
+                    if (isActive) Start.resume(PASSWORD);
+                }
             }
         }
         result.add(new TestCasePausePermcheckGranted());

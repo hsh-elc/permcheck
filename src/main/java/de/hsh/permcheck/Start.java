@@ -247,5 +247,8 @@ public class Start {
         Specs.resume(password);
     }
 
+    public static Boolean isActive(String password) {
+        return Specs.isActive(password);
+    }
     
 }
