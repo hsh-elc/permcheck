@@ -4,9 +4,17 @@
     // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
     "version": "0.2.0",
     "configurations": [
+
         {
             "type": "java",
-            "name": "Main4 on Java 17",
+            "name": "TestMain",
+            "request": "launch",
+            "mainClass": "de.hsh.permcheck/main.TestMain",
+            "projectName": "permcheck"
+        },
+        {
+            "type": "java",
+            "name": "TestMain on Java 17",
             "request": "launch",
             "mainClass": "main.TestMain",
             "vmArgs": [
@@ -17,19 +25,26 @@
                 "-Dnet.bytebuddy.safe=true",
                 "-ea",
                 "-javaagent:lib/byte-buddy-agent-1.15.11.jar",
-                "--add-reads", "java.base=ALL-UNNAMED"
+                "--add-reads",
+                "java.base=ALL-UNNAMED"
+            ],
+            "classPaths": [
+                "${workspaceFolder}/target/classes",
+                "${workspaceFolder}/target/test-classes",
+                "${workspaceFolder}/lib/*"
             ],
             "args": [
-                "--permcheck.policy", "permcheck.policy",
-                "--permcheck.tmpfolder", "C:/cygwin64/tmp/de.hsh.permcheck.tmpfolderforbootstrapinjection"
+                "--permcheck.policy",
+                "permcheck.policy",
+                "--permcheck.tmpfolder",
+                "C:/cygwin64/tmp/de.hsh.permcheck.tmpfolderforbootstrapinjection"
             ],
             "shortenCommandLine": "none"
-            
         },
         {
             "type": "java",
             "javaExec": "C:\\PROGRA~1\\Java\\TemurinJDK-24\\bin\\java.exe",
-            "name": "Main4 on Java 24",
+            "name": "TestMain on Java 24",
             "request": "launch",
             "mainClass": "main.TestMain",
             "vmArgs": [
@@ -39,14 +54,21 @@
                 "-Dnet.bytebuddy.safe=true",
                 "-ea",
                 "-javaagent:lib/byte-buddy-agent-1.15.11.jar",
-                "--add-reads", "java.base=ALL-UNNAMED"
+                "--add-reads",
+                "java.base=ALL-UNNAMED"
+            ],
+            "classPaths": [
+                "${workspaceFolder}/target/classes",
+                "${workspaceFolder}/target/test-classes",
+                "${workspaceFolder}/lib/*"
             ],
             "args": [
-                "--permcheck.policy", "permcheck.policy",
-                "--permcheck.tmpfolder", "C:/cygwin64/tmp/de.hsh.permcheck.tmpfolderforbootstrapinjection"
+                "--permcheck.policy",
+                "permcheck.policy",
+                "--permcheck.tmpfolder",
+                "C:/cygwin64/tmp/de.hsh.permcheck.tmpfolderforbootstrapinjection"
             ],
             "shortenCommandLine": "none"
-            
         }
     ]
 }

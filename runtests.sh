@@ -58,7 +58,7 @@ $JAVA_HOME_17_EXEC \
   -XX:-EnableDynamicAgentLoading -Xshare:off -ea \
   -Dnet.bytebuddy.safe=true -javaagent:lib/byte-buddy-agent-1.15.11.jar \
   --add-reads java.base=ALL-UNNAMED \
-  -cp target/permcheck-${release}.jar${pathsep}target/permcheck-${release}-tests.jar${pathsep}lib/byte-buddy-1.15.11.jar${pathsep}lib/byte-buddy-agent-1.15.11.jar${pathsep}lib/junit-4.13.2.jar${pathsep}lib/hamcrest-core-1.3.jar \
+  -cp target/permcheck-${release}.jar${pathsep}target/permcheck-${release}-tests.jar${pathsep}lib/* \
   main.TestMain \
   --permcheck.policy permcheck.policy \
   || exit 1
@@ -70,7 +70,7 @@ $JAVA_HOME_17_EXEC \
   -XX:-EnableDynamicAgentLoading -Xshare:off -ea \
   -Dnet.bytebuddy.safe=true -javaagent:lib/byte-buddy-agent-1.15.11.jar \
   --add-reads java.base=ALL-UNNAMED \
-  -cp target/classes${pathsep}target/test-classes${pathsep}lib/byte-buddy-1.15.11.jar${pathsep}lib/byte-buddy-agent-1.15.11.jar${pathsep}lib/junit-4.13.2.jar${pathsep}lib/hamcrest-core-1.3.jar \
+  -cp target/classes${pathsep}target/test-classes${pathsep}lib/* \
   main.TestMain \
   --permcheck.policy permcheck.policy \
   || exit 1
@@ -82,7 +82,7 @@ $JAVA_HOME_24_EXEC \
   --sun-misc-unsafe-memory-access=deny \
   -Dnet.bytebuddy.safe=true -javaagent:lib/byte-buddy-agent-1.15.11.jar \
   --add-reads java.base=ALL-UNNAMED \
-  -cp target/permcheck-${release}.jar${pathsep}target/permcheck-${release}-tests.jar${pathsep}lib/byte-buddy-1.15.11.jar${pathsep}lib/byte-buddy-agent-1.15.11.jar${pathsep}lib/junit-4.13.2.jar${pathsep}lib/hamcrest-core-1.3.jar \
+  -cp target/permcheck-${release}.jar${pathsep}target/permcheck-${release}-tests.jar${pathsep}lib/* \
   main.TestMain \
   --permcheck.policy permcheck.policy \
   || exit 1

@@ -31,9 +31,16 @@ import net.bytebuddy.pool.TypePool;
 
 public class Start {
 
+    // static {
+    //     System.out.println("Klasse " + Start.class + " geladen durch: " + Start.class.getClassLoader());
+    //     new Exception().printStackTrace(System.out);
+    // }
+
     /**
      * 
      * @param policy specification of denials and permissions, separated by line breaks 
+     * @param password an arbitrary password, that must be passed to {@link #pause(String)}
+     *      and {@link #resume(String)}.
      * @param tempFolderForBootstrapInjection folder, where temporary class files may be saved. If the folder does not exist,
      *      it will be created automatically. If tempPath is null, the default temp folder as specified
      *      by the system property java.io.tmpdir is used.
@@ -41,13 +48,16 @@ public class Start {
      * @throws IOException if the tempPath folder cannot be created
      * @throws Error if the byte buddy agent cannot be found or installed.
      */
-    public static void configureByteBuddyAgentIfAny(String policy, String tempFolderForBootstrapInjection) throws IllegalArgumentException, IOException, Error {
+    public static void configureByteBuddyAgentIfAny(String policy, String password, String tempFolderForBootstrapInjection) throws IllegalArgumentException, IOException, Error {
         Instrumentation instrumentation = null;
         try {
             instrumentation = ByteBuddyAgent.getInstrumentation();
+            //System.out.println("Bytebuddy.getInstrumentation() succeeded!");
         } catch (IllegalStateException ex) {
+            //System.out.println("Bytebuddy.getInstrumentation() failed!");
             try {
                 instrumentation = ByteBuddyAgent.install();
+                //System.out.println("Bytebuddy.install() succeeded!");
             } catch (IllegalStateException ex2) {
                 throw new Error("Cannot find installed byte buddy agent.", ex2);
             }
@@ -72,7 +82,9 @@ public class Start {
             }
         }
 
-        if (Stream.of(policy.split("\\R")).map(String::trim).filter(s -> s.equals("verbose.install")).count() > 0) {
+        if (Stream.of(policy.split("\\R")).map(String::trim).filter(s -> 
+                s.startsWith("verbose ") && s.substring(8).contains("install") && !s.substring(8).contains("no-install")
+            ).count() > 0) {
             System.out.println("[PERMCHECK] Using temp folder for class injection to bootstrap classloader: " + temp);
         }
         ClassInjector injector = ClassInjector.UsingInstrumentation.of(temp, ClassInjector.UsingInstrumentation.Target.BOOTSTRAP, instrumentation);
@@ -135,7 +147,11 @@ public class Start {
                 "VerboseCategory"
             };
 
+// System.out.println("Before injecting of internal permcheck classes into boottsrap classloader ...");
+// Scanner console = new Scanner(System.in);
+//console.nextLine();
         for (String className : classNames) {
+// System.out.println("className: " + className);
             Map<TypeDescription, byte[]> types = new ByteBuddy()
                     .redefine(
                             typePool.describe(internalPkgPrefix+className).resolve(),
@@ -143,8 +159,23 @@ public class Start {
                     .make()
                     .getAllTypes();
     
-            injector.inject(types);
+            Map<TypeDescription, Class<?>> classes = injector.inject(types);
+// for (TypeDescription tdescr : classes.keySet()) {             
+//     System.out.println("  Classloader of " + tdescr.getTypeName() + ": " + classes.get(tdescr).getClassLoader());
+// }
         }
+
+// System.out.println("After injecting of internal permcheck classes into boottsrap classloader ...");
+//console.nextLine();
+
+// try {
+//     System.out.println("Specs Klasse wurde geladen von:");
+//     System.out.println(Class.forName("de.hsh.permcheck.internal.Specs", true, null).getClassLoader());
+// } catch (ClassNotFoundException e) {
+//     // TODO Auto-generated catch block
+//     e.printStackTrace();
+// }
+//console.nextLine();
 
         // This doesn't work on Windows, since the jar files, that were created and loaded above, cannot
         // be deleted from the running JVM.
@@ -153,7 +184,7 @@ public class Start {
         }
         temp.deleteOnExit();
 
-        Specs.setup(policy);
+        Specs.setup(policy, password);
 
         HashMap<Class<?>, List<Spec>> map = new HashMap<>();
         for (Executable e : Specs.getExecutables()) {
@@ -207,4 +238,14 @@ public class Start {
         }
         agentBuilder.installOn(instrumentation);
     }
+
+    public static void pause(String password) {
+        Specs.pause(password);
+    }
+
+    public static void resume(String password) {
+        Specs.resume(password);
+    }
+
+    
 }

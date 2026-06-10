@@ -13,6 +13,9 @@ public class Specs {
 
     private LinkedHashSet<String> untrustedClasses;
 
+    private String password;
+    private boolean isActive;
+
     private String[] privilege = new String[10];
     private int numPrivilege = 0;
 
@@ -48,19 +51,23 @@ public class Specs {
 
 
 
-    private Specs() {
+    private Specs(String password) {
         registry = new LinkedHashMap<>();
         untrustedClasses = new LinkedHashSet<>();
+        isActive = true;
+        this.password = password;
     }
 
     /**
      * 
      * @param policy
+     * @param password an arbitrary password, that must be passed to {@link #pause(String)}
+     *     and {@link #resume(String)}.
      * @throws IllegalArgumentException in case of an illegal policy format
      * @throws Error in case of an internal error
      */
-    public static void setup(String policy) throws IllegalArgumentException {
-        mySpecs = new Specs();
+    public static void setup(String policy, String password) throws IllegalArgumentException {
+        mySpecs = new Specs(password);
 
         AbstractCheck[] checks = {
             new DenyExitVmCheck(),
@@ -177,11 +184,47 @@ public class Specs {
     }
 
     public static boolean include(VerboseCategory vc) {
+        if (mySpecs == null) throw new Error("Internal error in permcheck library: mySpecs is null");
         return (mySpecs.verbose & vc.val()) != 0;
     }
 
     public static String[] getPrivilege() {
         return mySpecs.privilege;
+    }
+
+    /**
+     * Deactivates permcheck functionality
+     * @param password must be specified equal to the password passed to {@link #setup(String, String)}.
+     */
+    public static void pause(String password) throws IllegalArgumentException {
+        if (mySpecs != null) {
+            if (!mySpecs.isActive) return;
+            if (mySpecs.password != null && mySpecs.password.equals(password))  {
+                mySpecs.isActive = false;
+            } else {
+                throw new IllegalArgumentException("Illegal password passed to permcheck's pause method");
+            }
+        }
+    }
+
+    /**
+     * Reactivates permcheck functionality
+     * @param password must be specified equal to the password passed to {@link #setup(String, String)}.
+     */
+    public static void resume(String password) throws IllegalArgumentException{
+        if (mySpecs != null) {
+            if (mySpecs.isActive) return;
+            if (mySpecs.password != null && mySpecs.password.equals(password))  {
+                mySpecs.isActive = true;
+            } else {
+                throw new IllegalArgumentException("Illegal password passed to permcheck's resume method");
+           }
+        }
+    }
+
+    protected static boolean isActive() {
+        if (mySpecs == null) return false;
+        return mySpecs.isActive;
     }
 
 }

@@ -66,6 +66,8 @@ import grader.TestRunner;
  */
 public class TestMain {
 
+    private static String PASSWORD = Long.toUnsignedString(new Random().nextLong());
+
     public static void main(String[] args) throws Exception {
         String tempFolderForBootstrapInjection = null;
         String policy = "";
@@ -111,15 +113,15 @@ public class TestMain {
             i++;
         }
         try {
-            Start.configureByteBuddyAgentIfAny(policy, tempFolderForBootstrapInjection);
+            Start.configureByteBuddyAgentIfAny(policy, PASSWORD, tempFolderForBootstrapInjection);
 
             JUnitCore junit = new JUnitCore();
 
-            gradeSubmission(junit);
+            gradeSubmission(junit, PASSWORD);
 
             List<TestCase> tests = collectTestCaseFactoryMethods();
             for (TestCase tc : tests) {
-                runTestCase(junit, tc);
+                runTestCase(junit, PASSWORD, tc);
             }
         } finally {
             // System.out.println("Enter to finish...");
@@ -145,9 +147,17 @@ public class TestMain {
         System.exit(1);
     }
 
-    private static void gradeSubmission(JUnitCore junit) {
-        Result result = junit.run(Grader.class);
+    private static void gradeSubmission(JUnitCore junit, String password) {
+        Result result = runJunitWithPermcheck(junit, Grader.class, password);
         eval(result, "grading submission");
+    }
+
+    private static Result runJunitWithPermcheck(JUnitCore junit, Class<?> clazz, String password) {
+        Start.resume(password);
+        // junit.addListener(new TextListener(System.out));
+        Result result = junit.run(clazz);
+        Start.pause(password);
+        return result;
     }
 
     private static List<TestCase> collectTestCaseFactoryMethods() {
@@ -183,11 +193,10 @@ public class TestMain {
         return tests;
     }
 
-    private static void runTestCase(JUnitCore junit, TestCase tc) {
+    private static void runTestCase(JUnitCore junit, String password, TestCase tc) {
         TestRunner.tc = tc;
 
-        // junit.addListener(new TextListener(System.out));
-        Result result = junit.run(TestRunner.class);
+        Result result = runJunitWithPermcheck(junit, TestRunner.class, password);
         eval(result, "TestCase '" + tc.nameAndComment() + "'");
     }
 
@@ -242,6 +251,42 @@ public class TestMain {
             }
         }
         result.add(new TestCaseWrongResult());
+
+        return result;
+    }
+
+    @TestCaseFactory
+    private static List<TestCase> testAttackToPermcheck() {
+        ArrayList<TestCase> result = new ArrayList<>();
+
+        class TestCasePausePermcheckDenied extends TestCase {
+            public TestCasePausePermcheckDenied() {
+                super(Error.class, "env is not granted for 'PATH'");
+            }
+            @Override public Double apply(Double x) {
+                try {
+                    Start.pause("secret"); // futile attempt
+                } catch (IllegalArgumentException ex) {
+                    // continue. This is expected.
+                }
+                System.getenv("PATH"); // still denied
+                // We shouldn't get here
+                return 0.0;
+            }
+        }
+        result.add(new TestCasePausePermcheckDenied());
+
+        class TestCasePausePermcheckGranted extends TestCase {
+            public TestCasePausePermcheckGranted() {
+                super(null, null);
+            }
+            @Override public Double apply(Double x) {
+                Start.pause(PASSWORD); // successful attempt
+                System.getenv("PATH"); // granted, because permcheck was successfully paused
+                return Math.sqrt(x);
+            }
+        }
+        result.add(new TestCasePausePermcheckGranted());
 
         return result;
     }

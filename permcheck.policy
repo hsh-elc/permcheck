@@ -208,7 +208,7 @@ privilege java.compiler/javax.tools.JavaCompiler#getStandardFileManager
 privilege jdk.compiler/com.sun.tools.javac.api.JavacTool#getStandardFileManager
 privilege jdk.compiler/com.sun.tools.javac.api.JavacTaskImpl#call
 
-# We assign privileges to all test factory methods, since these methods need
+# We assign privileges to many test factory methods, since these methods need
 # to prepare files and classes before instantiating TestCase objects.
 # The TestCase objects themselves are not privileged, since these operate
 # in null/main.TestMain$<N>TestCase*#apply

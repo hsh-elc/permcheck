@@ -82,6 +82,8 @@ public class MyAdvices {
                       @Advice.This(optional = true) Object target,
                       @Advice.Origin Executable originExecutable,
                       @Advice.AllArguments Object[] ary) {
+        if (!Specs.isActive()) return;
+
         // When this advice determines the stack trace, classes are loaded, which in turn
         // leads to a call to, for example, File.exists(), which itself should be instrumented.
         // Such cycles are broken by the following statements.
@@ -138,6 +140,8 @@ public class MyAdvices {
                       @Advice.Origin Executable originExecutable,
                       @Advice.AllArguments Object[] ary,
                       @Advice.Return(typing = Typing.DYNAMIC) Object result) {
+        if (!Specs.isActive()) return;
+
         if (getCallStack() == null) {
             // We are in the middle of the unfinished creation of the class variable CALLSTACK
             // This is definitely not called from distrusted classes, so we can safely
