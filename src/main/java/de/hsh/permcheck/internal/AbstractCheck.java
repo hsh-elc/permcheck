@@ -2,6 +2,7 @@ package de.hsh.permcheck.internal;
 
 import java.lang.invoke.MethodType;
 import java.lang.reflect.Executable;
+import java.util.ArrayList;
 import java.util.Map;
 
 public abstract class AbstractCheck implements Logger {
@@ -21,10 +22,16 @@ public abstract class AbstractCheck implements Logger {
 
     public abstract String getSpecName();
 
+    @Override
     public void log(VerboseCategory vc, String msg) {
         if (Specs.include(vc)) {
             System.out.println(msg);
         }
+    }
+
+    @Override
+    public boolean include(VerboseCategory vc) {
+        return Specs.include(vc);
     }
 
     protected String getActivationKey() {
@@ -55,13 +62,24 @@ public abstract class AbstractCheck implements Logger {
         return processSpecImpl(key, value);
     }
 
-    
-    protected abstract void registerImpl(Map<Executable, Insert> registry) throws Exception;
+    protected class Registry {
+        protected Map<Executable, ArrayList<Insert>> map;
+        protected Registry(Map<Executable, ArrayList<Insert>> map) {
+            this.map = map;
+        }
+        public void put(Executable executable, Insert insert) {
+            if (!map.containsKey(executable)) {
+                map.put(executable, new ArrayList<Insert>());
+            }
+            map.get(executable).add(insert);
+        }
+    }
+    protected abstract void registerImpl(Registry registry) throws Exception;
 
-
-    void register(Map<Executable, Insert> registry) throws Exception {
+    void register(Map<Executable, ArrayList<Insert>> registry) throws Exception {
         if (isActivated()) {
-            registerImpl(registry);
+            Registry map = new Registry(registry);
+            registerImpl(map);
         }
     }
 

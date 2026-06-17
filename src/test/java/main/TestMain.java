@@ -49,6 +49,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Properties;
 import java.util.Random;
+import java.util.Scanner;
 import java.util.TimeZone;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
@@ -58,6 +59,8 @@ import org.junit.runner.*;
 import org.junit.runner.notification.Failure;
 
 import de.hsh.permcheck.Start;
+import de.hsh.permcheck.internal.MyAdvices;
+import de.hsh.permcheck.internal.PermcheckException;
 import grader.Grader;
 import grader.TestRunner;
 
@@ -112,10 +115,15 @@ public class TestMain {
             }
             i++;
         }
+
         try {
             Start.configureByteBuddyAgentIfAny(policy, PASSWORD, tempFolderForBootstrapInjection);
 
             //System.out.println("permcheck is active: " + Start.isActive(PASSWORD));
+
+            // System.out.println("Ready to start tests ... press ENTER ...");
+            // Scanner console = new Scanner(System.in);
+            // console.nextLine();
 
             JUnitCore junit = new JUnitCore();
 
@@ -240,6 +248,31 @@ public class TestMain {
     }
 
     @TestCaseFactory
+    private static List<TestCase> testPerformance() {
+        ArrayList<TestCase> result = new ArrayList<>();
+
+        class TestCasePerformance extends TestCase {
+            @Override public Double apply(Double x) {
+                for (int i=1; i<=100_000; i++) {
+                    try {
+                        Math.class.getDeclaredFields();
+                        // ^should be denied
+                        throw new AssertionError("Internal error in TestCase");
+                    } catch (PermcheckException e) {
+                        // nothing to be done
+                        if (i%10000 == 0)
+                            System.out.format("TestCasePerformance: %d%n", i);
+                    }
+                }
+                return Math.sqrt(x);
+            }
+        }
+        result.add(new TestCasePerformance());
+
+        return result;
+    }
+
+    @TestCaseFactory
     private static List<TestCase> testWrongResult() {
         ArrayList<TestCase> result = new ArrayList<>();
 
@@ -262,7 +295,7 @@ public class TestMain {
 
         class TestCasePausePermcheckDenied extends TestCase {
             public TestCasePausePermcheckDenied() {
-                super(Error.class, "env is not granted for 'PATH'");
+                super(PermcheckException.class, "env is not granted for 'PATH'");
             }
             @Override public Double apply(Double x) {
                 try {
@@ -299,7 +332,7 @@ public class TestMain {
 
     @TestCaseFactory
     private static List<TestCase> testExitVm() {
-        Class<? extends Throwable> expectedException = Error.class;
+        Class<? extends Throwable> expectedException = PermcheckException.class;
         String expectedMsg = "exitVm is not granted";
         ArrayList<TestCase> result = new ArrayList<>();
 
@@ -341,7 +374,7 @@ public class TestMain {
 
     @TestCaseFactory
     private static List<TestCase> testReflectionSetAccessible() {
-        Class<? extends Throwable> expectedException = Error.class;
+        Class<? extends Throwable> expectedException = PermcheckException.class;
         String expectedMsg = "reflectionSetAccessible is not granted";
         class Dummy {
             @SuppressWarnings("unused") private int field;
@@ -484,7 +517,7 @@ public class TestMain {
 
     @TestCaseFactory
     private static List<TestCase> testReflectionAccessDeclaredMembers() {
-        Class<? extends Throwable> expectedException = Error.class;
+        Class<? extends Throwable> expectedException = PermcheckException.class;
         String expectedMsg = "reflectionAccessDeclaredMembers is not granted";
         class Dummy {
             @SuppressWarnings("unused") private int field;
@@ -810,7 +843,7 @@ public class TestMain {
 
         class TestCaseMethodHandlesLookupFindStaticDifferentClassLoaderPrivateMethod extends TestCase {
             public TestCaseMethodHandlesLookupFindStaticDifferentClassLoaderPrivateMethod() {
-                super(expectedException, "IllegalAccessException: no such method:");
+                super(Error.class, "IllegalAccessException: no such method:");
             }
             @Override public Double apply(Double x) {
                 try {
@@ -825,6 +858,7 @@ public class TestMain {
                     throw new AssertionError("Internal error in TestCase", e);
                 } catch (IllegalAccessException e) {
                     // should happen
+                    // Wrap into Error, because we don't want a throws clause
                     throw new Error(e.getClass().getSimpleName() + ": " + e.getMessage());
                 }
                 return 0.0;
@@ -859,7 +893,7 @@ public class TestMain {
 
         class TestCaseMethodHandlesLookupFindStaticSetterDifferentClassLoader extends TestCase {
             public TestCaseMethodHandlesLookupFindStaticSetterDifferentClassLoader() {
-                super(expectedException, "IllegalAccessException: unexpected set of a final field:");
+                super(Error.class, "IllegalAccessException: unexpected set of a final field:");
             }
             @Override public Double apply(Double x) {
                 try {
@@ -871,6 +905,7 @@ public class TestMain {
                     throw new AssertionError("Internal error in TestCase", e);
                 } catch (IllegalAccessException e) {
                     // should happen.
+                    // Wrap into Error, because we don't want a throws clause
                     throw new Error(e.getClass().getSimpleName() + ": " + e.getMessage());
                 }
                 return 0.0;
@@ -1634,7 +1669,7 @@ public class TestMain {
 
     @TestCaseFactory
     private static List<TestCase> testReflectionGetStacktrace() {
-        Class<? extends Throwable> expectedException = Error.class;
+        Class<? extends Throwable> expectedException = PermcheckException.class;
         String expectedMsg = "reflectionGetStackTrace is not granted";
 
         ArrayList<TestCase> result = new ArrayList<>();
@@ -1674,7 +1709,7 @@ public class TestMain {
 
     @TestCaseFactory
     private static List<TestCase> testReflectionGetStackWalkerWithClassReference() {
-        Class<? extends Throwable> expectedException = Error.class;
+        Class<? extends Throwable> expectedException = PermcheckException.class;
         String expectedMsg = "reflectionGetStackWalkerWithClassReference is not granted";
 
         ArrayList<TestCase> result = new ArrayList<>();
@@ -1741,7 +1776,7 @@ public class TestMain {
 
     @TestCaseFactory
     private static List<TestCase> testReflectionGetClassLoader() {
-        Class<? extends Throwable> expectedException = Error.class;
+        Class<? extends Throwable> expectedException = PermcheckException.class;
         String expectedMsg = "reflectionGetClassLoader is not granted";
 
         Class<?> clazzHelloWorldFromMemClassLoader, clazzGetSystemClassLoaderFromMemClassLoader;
@@ -2037,7 +2072,7 @@ public class TestMain {
 
     @TestCaseFactory
     private static List<TestCase> testFile() {
-        Class<? extends Throwable> expectedException = Error.class;
+        Class<? extends Throwable> expectedException = PermcheckException.class;
 
         Path root = new File(System.getProperty("java.io.tmpdir")).toPath().resolve("testpermcheck");
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
@@ -2266,8 +2301,8 @@ public class TestMain {
                 } catch (InvocationTargetException e) {
                     if (e.getCause() != null && e.getCause().getClass() == expectedException) {
                         // Expected exceptions are thrown as received from the method call
-                        assert Error.class.isAssignableFrom(expectedException);
-                        throw (Error)expectedException.cast(e.getCause());
+                        assert PermcheckException.class.isAssignableFrom(expectedException);
+                        throw (PermcheckException)expectedException.cast(e.getCause());
                     }
                 } catch (IllegalAccessException | NoSuchMethodException | IllegalArgumentException | SecurityException | NullPointerException | ExceptionInInitializerError e) {
                     // shouldn't happen
@@ -2351,8 +2386,8 @@ public class TestMain {
                 } catch (InvocationTargetException e) {
                     if (e.getCause() != null && e.getCause().getClass() == expectedException) {
                         // Expected exceptions are thrown as received from the method call
-                        assert Error.class.isAssignableFrom(expectedException);
-                        throw (Error)expectedException.cast(e.getCause());
+                        assert PermcheckException.class.isAssignableFrom(expectedException);
+                        throw (PermcheckException)expectedException.cast(e.getCause());
                     }
                 } catch (IllegalAccessException | NoSuchMethodException | IllegalArgumentException | SecurityException | NullPointerException | ExceptionInInitializerError e) {
                     // shouldn't happen
@@ -2481,7 +2516,7 @@ public class TestMain {
                 if (allArgClasses[0] == File.class) {
                     allArgs[0] = f;
                 } else if (allArgClasses[0] == String.class) {
-                    allArgs[0] = f.getAbsolutePath();
+                    allArgs[0] = f.getPath();
                 } else {
                     throw new IllegalArgumentException();
                 }
@@ -2531,8 +2566,8 @@ public class TestMain {
                 } catch (InvocationTargetException e) {
                     if (e.getCause() != null && e.getCause().getClass() == expectedException) {
                         // Expected exceptions are thrown as received from the method call
-                        assert Error.class.isAssignableFrom(expectedException);
-                        throw (Error)expectedException.cast(e.getCause());
+                        assert PermcheckException.class.isAssignableFrom(expectedException);
+                        throw (PermcheckException)expectedException.cast(e.getCause());
                     }
                 } catch (IOException | NoSuchMethodException | SecurityException | InstantiationException | IllegalAccessException | IllegalArgumentException e) {
                     throw new AssertionError("Internal error in TestCase", e);
@@ -2952,8 +2987,8 @@ public class TestMain {
                 } catch (InvocationTargetException e) {
                     if (e.getCause() != null && e.getCause().getClass() == expectedException) {
                         // Expected exceptions are thrown as received from the method call
-                        assert Error.class.isAssignableFrom(expectedException);
-                        throw (Error)expectedException.cast(e.getCause());
+                        assert PermcheckException.class.isAssignableFrom(expectedException);
+                        throw (PermcheckException)expectedException.cast(e.getCause());
                     }
                 } catch (IllegalAccessException | NoSuchMethodException | IllegalArgumentException | SecurityException | NullPointerException | ExceptionInInitializerError e) {
                     // shouldn't happen
@@ -3026,8 +3061,8 @@ public class TestMain {
                 } catch (InvocationTargetException e) {
                     if (e.getCause() != null && e.getCause().getClass() == expectedException) {
                         // Expected exceptions are thrown as received from the method call
-                        assert Error.class.isAssignableFrom(expectedException);
-                        throw (Error)expectedException.cast(e.getCause());
+                        assert PermcheckException.class.isAssignableFrom(expectedException);
+                        throw (PermcheckException)expectedException.cast(e.getCause());
                     }
                 } catch (IllegalAccessException | NoSuchMethodException | IllegalArgumentException | SecurityException | NullPointerException | ExceptionInInitializerError e) {
                     // shouldn't happen
@@ -3214,8 +3249,8 @@ public class TestMain {
                 } catch (InvocationTargetException e) {
                     if (e.getCause() != null && e.getCause().getClass() == expectedException) {
                         // Expected exceptions are thrown as received from the method call
-                        assert Error.class.isAssignableFrom(expectedException);
-                        throw (Error)expectedException.cast(e.getCause());
+                        assert PermcheckException.class.isAssignableFrom(expectedException);
+                        throw (PermcheckException)expectedException.cast(e.getCause());
                     }
                 } catch (IllegalAccessException | NoSuchMethodException | IllegalArgumentException | SecurityException | NullPointerException | ExceptionInInitializerError e) {
                     // shouldn't happen
@@ -3285,8 +3320,8 @@ public class TestMain {
                 } catch (InvocationTargetException e) {
                     if (e.getCause() != null && e.getCause().getClass() == expectedException) {
                         // Expected exceptions are thrown as received from the method call
-                        assert Error.class.isAssignableFrom(expectedException);
-                        throw (Error)expectedException.cast(e.getCause());
+                        assert PermcheckException.class.isAssignableFrom(expectedException);
+                        throw (PermcheckException)expectedException.cast(e.getCause());
                     }
                 } catch (IllegalAccessException | NoSuchMethodException | IllegalArgumentException | SecurityException | NullPointerException | ExceptionInInitializerError e) {
                     // shouldn't happen
@@ -3307,7 +3342,7 @@ public class TestMain {
 
     @TestCaseFactory
     private static List<TestCase> testProperty() {
-        Class<? extends Throwable> expectedException = Error.class;
+        Class<? extends Throwable> expectedException = PermcheckException.class;
         ArrayList<TestCase> result = new ArrayList<>();
 
         class TestCaseSystemGetPropertyDenied extends TestCase {
@@ -3440,7 +3475,7 @@ public class TestMain {
 
     @TestCaseFactory
     private static List<TestCase> testEnv() {
-        Class<? extends Throwable> expectedException = Error.class;
+        Class<? extends Throwable> expectedException = PermcheckException.class;
         ArrayList<TestCase> result = new ArrayList<>();
 
         class TestCaseSystemGetenvDenied extends TestCase {

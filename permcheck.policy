@@ -13,7 +13,7 @@
 # In order switch off an action, you can specify a "no-", i. e.
 #   verbose install,no-transform,permit,no-trace
 # is a valid spec.
-verbose no-install,no-transform,no-permit,no-trace
+verbose install,transform,no-permit,no-trace
 #verbose install,transform,permit,trace
 
 # Prevent VM exit (marker key):
@@ -117,6 +117,7 @@ permit.property jdk.nio.file.WatchService.maxEventsPerPoll | read
 # but this reveals already information about the grading system:
 permit.property java.io.tmpdir | read
 permit.property java.home | read
+permit.property file.encoding | read
 
 # Further permissions, that also could be granted to student submissions,
 # but that are denied in this test driver, since we want to test denial
@@ -181,6 +182,15 @@ distrust.regex main\.TestMain\$[0-9]*TestCase[^\$]*
 # Constructors are specified literally as #<init>
 # Static initializers are specified literally as #<clinit>
 
+privilege.plain java.base/java.lang.Class#getEnumConstantsShared
+privilege.plain java.base/java.util.ResourceBundle#getLoader
+privilege.plain java.base/java.util.ResourceBundle#loadBundle
+privilege.plain java.base/sun.util.resources.Bundles#loadBundleFromProviders
+privilege.plain java.base/sun.util.resources.LocaleData#getBundle
+privilege.plain java.base/sun.util.locale.provider.LocaleProviderAdapter#<clinit>
+privilege.plain java.base/sun.util.cldr.CLDRLocaleProviderAdapter#<init>
+privilege.plain java.base/sun.util.locale.provider.LocaleResources#<clinit>
+privilege.plain java.base/sun.util.locale.provider.LocaleProviderAdapter#forType
 privilege.plain java.base/java.lang.ProcessHandleImpl#<clinit>
 privilege.plain java.base/java.lang.ProcessImpl#<init>
 privilege.plain java.base/java.lang.ProcessImpl#initStreams
@@ -191,9 +201,11 @@ privilege.plain java.base/java.lang.StackWalker#<clinit>
 privilege.plain java.base/java.lang.System#getLogger
 privilege.plain java.base/java.io.ObjectStreamClass#<init>
 privilege.plain java.base/java.util.EnumSet#noneOf
+privilege.plain java.base/java.util.Scanner#<clinit>
 privilege.plain java.base/java.security.Security#initialize
 privilege.plain java.base/java.security.SecureRandom#<init>
 privilege.plain java.base/java.security.SecureRandom#next
+privilege.plain java.base/java.text.DateFormatSymbols#<init>
 privilege.plain java.desktop/java.awt.Desktop#isDesktopSupported
 privilege.plain java.desktop/java.awt.Desktop#getDesktop
 privilege.plain java.base/jdk.internal.util.random.RandomSupport#secureRandomSeedRequested
@@ -208,6 +220,14 @@ privilege.plain java.compiler/javax.tools.ToolProvider#getSystemJavaCompiler
 privilege.plain java.compiler/javax.tools.JavaCompiler#getStandardFileManager
 privilege.plain jdk.compiler/com.sun.tools.javac.api.JavacTool#getStandardFileManager
 privilege.plain jdk.compiler/com.sun.tools.javac.api.JavacTaskImpl#call
+privilege.regex javafx\.base/[A-Za-z\.]+#<clinit>
+privilege.regex javafx\.graphics/[A-Za-z\.]+#<clinit>
+privilege.regex javafx\.controls/[A-Za-z\.]+#<clinit>
+privilege.plain javafx.graphics/javafx.scene.Node#processCSS
+privilege.plain javafx.graphics/javafx.stage.Window#show
+privilege.plain javafx.graphics/com.sun.javafx.font.PrismFontFactory#getFontFactory
+privilege.plain javafx.graphics/com.sun.javafx.font.PrismFontFactory#getFontResource
+privilege.plain javafx.graphics/com.sun.javafx.font.PrismFontFactory#getDefaultFontResource
 
 # We assign privileges to many test factory methods, since these methods need
 # to prepare files and classes before instantiating TestCase objects.

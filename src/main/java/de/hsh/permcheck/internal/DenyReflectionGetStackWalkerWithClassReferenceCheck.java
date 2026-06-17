@@ -1,8 +1,6 @@
 package de.hsh.permcheck.internal;
 
 import java.lang.StackWalker.Option;
-import java.lang.reflect.Executable;
-import java.util.Map;
 import java.util.Set;
 import java.util.function.Predicate;
 
@@ -12,7 +10,7 @@ public class DenyReflectionGetStackWalkerWithClassReferenceCheck extends Abstrac
     }
 
     @Override
-    protected void registerImpl(Map<Executable, Insert> registry) throws Exception {
+    protected void registerImpl(Registry registry) throws Exception {
         registry.put(
                 StackWalker.class.getDeclaredMethod("getInstance", Option.class),
                 denyDependingOnFirstArg(Option.class, option -> !option.equals(StackWalker.Option.RETAIN_CLASS_REFERENCE)));
@@ -25,7 +23,7 @@ public class DenyReflectionGetStackWalkerWithClassReferenceCheck extends Abstrac
     }
 
 
-    private class DenyDependingOnFirstArg<T> extends Insert {
+    private class DenyDependingOnFirstArg<T> extends EnterInsert {
 
         private Class<T> argClass;
         private Predicate<T> isGranted;

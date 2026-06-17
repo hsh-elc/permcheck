@@ -1,6 +1,6 @@
 package de.hsh.permcheck.internal;
 
-public abstract class ActionInsert extends Insert {
+public abstract class ActionInsert extends EnterInsert {
 
         private Action[] actions;
         private AbstractPermitCheck check;

@@ -1,7 +1,5 @@
 package de.hsh.permcheck.internal;
 
-import java.lang.reflect.Executable;
-import java.util.Map;
 
 public class DenyExitVmCheck extends AbstractDenyCheck {
 
@@ -10,7 +8,7 @@ public class DenyExitVmCheck extends AbstractDenyCheck {
     }
 
     @Override
-    protected void registerImpl(Map<Executable, Insert> registry) throws Exception {
+    protected void registerImpl(Registry registry) throws Exception {
         registry.put(System.class.getDeclaredMethod("exit", int.class), deny());
         registry.put(Runtime.class.getDeclaredMethod("exit", int.class), deny());
         registry.put(Runtime.class.getDeclaredMethod("halt", int.class), deny());

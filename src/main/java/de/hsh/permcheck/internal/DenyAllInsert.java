@@ -1,6 +1,6 @@
 package de.hsh.permcheck.internal;
 
-public class DenyAllInsert extends Insert {
+public class DenyAllInsert extends EnterInsert {
 
     private String checkName;
     

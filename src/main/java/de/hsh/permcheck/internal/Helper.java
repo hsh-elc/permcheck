@@ -10,15 +10,15 @@ public class Helper {
 
     
 
-    public static void denyInvocation(Hook hook, Logger log) {
+    public static void denyInvocation(Hook hook, Logger log) throws PermcheckException {
         denyInvocation(hook, null, null, log);
     }
 
-    public static void denyInvocation(Hook hook, String explanation, Logger log) {
+    public static void denyInvocation(Hook hook, String explanation, Logger log) throws PermcheckException {
         denyInvocation(hook, explanation, null, log);
     }
 
-    public static void denyInvocation(Hook hook, String explanation, String cause, Logger log) {
+    public static void denyInvocation(Hook hook, String explanation, String cause, Logger log) throws PermcheckException {
         StringBuilder msg = new StringBuilder();
         msg.append("Denied invocation of ");
         msg.append(hook.pretty());
@@ -31,20 +31,22 @@ public class Helper {
 
         if (log != null) {
             VerboseCategory level= VerboseCategory.TRACE;
-            log.log(level, "[PERMCHECK] " + cause);
-            StringWriter sw = new StringWriter();
-            new Throwable().printStackTrace(new PrintWriter(sw));
-            String s = sw.toString();
-            try (Scanner sc = new Scanner(s)) {
-                sc.nextLine();
-                log.log(level, "[PERMCHECK] Trace");
-                while (sc.hasNextLine()) {
-                    log.log(level, "[PERMCHECK] " + sc.nextLine());
+            if (log.include(level)) {
+                log.log(level, "[PERMCHECK] " + cause);
+                StringWriter sw = new StringWriter();
+                new Throwable().printStackTrace(new PrintWriter(sw));
+                String s = sw.toString();
+                try (Scanner sc = new Scanner(s)) {
+                    sc.nextLine();
+                    log.log(level, "[PERMCHECK] Trace");
+                    while (sc.hasNextLine()) {
+                        log.log(level, "[PERMCHECK] " + sc.nextLine());
+                    }
                 }
             }
         }
 
-        throw new Error(msg.toString());
+        throw new PermcheckException(msg.toString());
 
     }
 

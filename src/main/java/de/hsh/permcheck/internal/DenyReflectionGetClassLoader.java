@@ -3,12 +3,10 @@ package de.hsh.permcheck.internal;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
 import java.lang.module.Configuration;
-import java.lang.reflect.Executable;
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Proxy;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 import java.util.ResourceBundle;
 import java.util.function.Function;
 
@@ -18,24 +16,7 @@ public class DenyReflectionGetClassLoader extends AbstractDenyCheck {
     }
 
     @Override
-    protected void registerImpl(Map<Executable, Insert> registry) throws Exception {
-        registry.put(
-                Thread.class.getDeclaredMethod("getContextClassLoader"),
-                denyOnExit());
-
-        registry.put(
-                Class.class.getDeclaredMethod("getClassLoader"),
-                denyOnExit());
-        registry.put(
-                ClassLoader.class.getDeclaredMethod("getParent"),
-                denyOnExit());
-        registry.put(
-                ClassLoader.class.getDeclaredMethod("getPlatformClassLoader"),
-                denyOnExit());
-        registry.put(
-                ClassLoader.class.getDeclaredMethod("getSystemClassLoader"),
-                denyOnExit());
-
+    protected void registerImpl(Registry registry) throws Exception {
         registry.put(
                 Class.class.getDeclaredMethod("forName", String.class, boolean.class, ClassLoader.class),
                 denySpecifiedLoaderIsNullAndCallerLoaderIsNotNull());
@@ -82,10 +63,28 @@ public class DenyReflectionGetClassLoader extends AbstractDenyCheck {
                 denyCallerModuleDifferentFromSpecifiedModule());
 
 
+        // registries on exit:
+
+        registry.put(
+                Thread.class.getDeclaredMethod("getContextClassLoader"),
+                denyOnExit());
+
+        registry.put(
+                Class.class.getDeclaredMethod("getClassLoader"),
+                denyOnExit());
+        registry.put(
+                ClassLoader.class.getDeclaredMethod("getParent"),
+                denyOnExit());
+        registry.put(
+                ClassLoader.class.getDeclaredMethod("getPlatformClassLoader"),
+                denyOnExit());
+        registry.put(
+                ClassLoader.class.getDeclaredMethod("getSystemClassLoader"),
+                denyOnExit());
     }
+    
 
-
-    private class DenyOnExit extends Insert {
+    private class DenyOnExit extends ExitInsert {
         @Override
         public void onExitImpl(Hook hook, Object result) {
             boolean granted = false;
@@ -116,7 +115,7 @@ public class DenyReflectionGetClassLoader extends AbstractDenyCheck {
 
     
 
-    private class DenyOnUnprivilegedMethodHandlesLookup extends Insert {
+    private class DenyOnUnprivilegedMethodHandlesLookup extends EnterInsert {
         @Override
         public void onEnterImpl(Hook hook) {
             MethodHandles.Lookup lookup = (MethodHandles.Lookup)hook.target();
@@ -132,7 +131,7 @@ public class DenyReflectionGetClassLoader extends AbstractDenyCheck {
     public DenyOnUnprivilegedMethodHandlesLookup denyOnUnprivilegedMethodHandlesLookup() {
         return new DenyOnUnprivilegedMethodHandlesLookup();
     }
-    private class DenyOnMethodTypeFromMethodDescriptorString extends Insert {
+    private class DenyOnMethodTypeFromMethodDescriptorString extends EnterInsert {
         @Override
         public void onEnterImpl(Hook hook) {
             ClassLoader cl = (ClassLoader)hook.arg(1);
@@ -151,7 +150,7 @@ public class DenyReflectionGetClassLoader extends AbstractDenyCheck {
 
     
 
-    private class DenyCallerModuleDifferentFromSpecifiedModule extends Insert {
+    private class DenyCallerModuleDifferentFromSpecifiedModule extends EnterInsert {
         @Override
         public void onEnterImpl(Hook hook) {
             Class<?> caller = Helper.getCallerClass();
@@ -179,7 +178,7 @@ public class DenyReflectionGetClassLoader extends AbstractDenyCheck {
     }
 
 
-    private class DenySpecifiedLoaderIsNullAndCallerLoaderIsNotNull extends Insert {
+    private class DenySpecifiedLoaderIsNullAndCallerLoaderIsNotNull extends EnterInsert {
         @Override
         public void onEnterImpl(Hook hook) {
             ClassLoader loader = null;

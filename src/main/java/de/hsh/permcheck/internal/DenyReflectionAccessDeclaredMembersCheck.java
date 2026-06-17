@@ -3,8 +3,6 @@ package de.hsh.permcheck.internal;
 
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
-import java.lang.reflect.Executable;
-import java.util.Map;
 
 public class DenyReflectionAccessDeclaredMembersCheck extends AbstractDenyCheck {
 
@@ -13,7 +11,7 @@ public class DenyReflectionAccessDeclaredMembersCheck extends AbstractDenyCheck 
     }
 
     @Override
-    protected void registerImpl(Map<Executable, Insert> registry) throws Exception {
+    protected void registerImpl(Registry registry) throws Exception {
         registry.put(
                 Class.class.getDeclaredMethod("getDeclaredField", String.class),
                 denyTargetOnDifferentClassLoaders() );
@@ -80,8 +78,9 @@ public class DenyReflectionAccessDeclaredMembersCheck extends AbstractDenyCheck 
                 MethodHandles.Lookup.class.getDeclaredMethod("bind", Object.class, String.class, MethodType.class),
                 denyFirstArgsClassOnDifferentClassloaders() );
     }
-
-    private class DenyTargetOnDifferentClassLoadersInsert extends Insert {
+    
+    
+    private class DenyTargetOnDifferentClassLoadersInsert extends EnterInsert {
         @Override
         public void onEnterImpl(Hook hook) {
             Class<?> clazz = getTarget(hook, Class.class);
@@ -113,7 +112,7 @@ public class DenyReflectionAccessDeclaredMembersCheck extends AbstractDenyCheck 
         return new DenyTargetOnDifferentClassLoadersInsert();
     }
 
-    private class DenyFirstArgOnDifferentClassLoadersInsert extends Insert {
+    private class DenyFirstArgOnDifferentClassLoadersInsert extends EnterInsert {
         @Override
         public void onEnterImpl(Hook hook) {
             Class<?> clazz = getFirstArg(hook, Class.class);
@@ -144,7 +143,7 @@ public class DenyReflectionAccessDeclaredMembersCheck extends AbstractDenyCheck 
         return new DenyFirstArgOnDifferentClassLoadersInsert();
     }
 
-    private class DenyFirstArgsClassOnDifferentClassLoadersInsert extends Insert {
+    private class DenyFirstArgsClassOnDifferentClassLoadersInsert extends EnterInsert {
         @Override
         public void onEnterImpl(Hook hook) {
             Object arg = getFirstArg(hook, Object.class);

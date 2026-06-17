@@ -5,10 +5,8 @@ import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodHandles.Lookup;
 import java.lang.reflect.AccessibleObject;
 import java.lang.reflect.Constructor;
-import java.lang.reflect.Executable;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
-import java.util.Map;
 
 public class DenyReflectionSetAccessibleCheck extends AbstractDenyCheck {
     public DenyReflectionSetAccessibleCheck() {
@@ -16,7 +14,7 @@ public class DenyReflectionSetAccessibleCheck extends AbstractDenyCheck {
     }
 
     @Override
-    protected void registerImpl(Map<Executable, Insert> registry) throws Exception {
+    protected void registerImpl(Registry registry) throws Exception {
         registry.put(
                 AccessibleObject.class.getDeclaredMethod("setAccessible", AccessibleObject[].class, boolean.class),
                 deny());
@@ -42,4 +40,5 @@ public class DenyReflectionSetAccessibleCheck extends AbstractDenyCheck {
                 MethodHandles.class.getDeclaredMethod("privateLookupIn", Class.class, Lookup.class),
                 deny());
     }
+
 }

@@ -37,7 +37,7 @@ public class PermitFileCheck extends AbstractPermitCheck {
     }
 
     @Override
-    protected void registerImpl(Map<Executable, Insert> registry) throws Exception {
+    protected void registerImpl(Registry registry) throws Exception {
         // execute:
 
         registry.put(File.class.getDeclaredMethod("canExecute"), targetExecute());
@@ -151,7 +151,6 @@ public class PermitFileCheck extends AbstractPermitCheck {
         registry.put(Files.class.getDeclaredMethod("deleteIfExists", Path.class), firstArgDelete());
     }
     
-
     @Override
     protected boolean matches(String pattern, String pathStr) {
         // Falls das Pattern noch kein "glob:" davor hat, fügen wir es hinzu
@@ -265,36 +264,36 @@ public class PermitFileCheck extends AbstractPermitCheck {
         }
     };
     
-    public Insert targetExecute() {
+    public EnterInsert targetExecute() {
         return new TargetInsert(Action.EXECUTE);
     }
-    public Insert targetRead() {
+    public EnterInsert targetRead() {
         return new TargetInsert(Action.READ);
     }
-    public Insert targetWrite() {
+    public EnterInsert targetWrite() {
         return new TargetInsert(Action.WRITE);
     }
-    public Insert targetDelete() {
+    public EnterInsert targetDelete() {
         return new TargetInsert(Action.DELETE);
     }
 
-    public Insert firstArgExecute() {
+    public EnterInsert firstArgExecute() {
         return new FirstArgInsert(Action.EXECUTE);
     }
-    public Insert firstArgRead() {
+    public EnterInsert firstArgRead() {
         return new FirstArgInsert(Action.READ);
     }
-    public Insert firstArgWrite() {
+    public EnterInsert firstArgWrite() {
         return new FirstArgInsert(Action.WRITE);
     }
-    public Insert firstArgDelete() {
+    public EnterInsert firstArgDelete() {
         return new FirstArgInsert(Action.DELETE);
     }
-    public Insert firstArgReadDelete() {
+    public EnterInsert firstArgReadDelete() {
         return new FirstArgInsert(Action.READ, Action.DELETE);
     }
 
-    private class FirstArgMkdirs extends Insert {
+    private class FirstArgMkdirs extends EnterInsert {
         @Override
         public void onEnterImpl(Hook hook) {
             if (hook.args() == null || hook.args().length == 0) {
@@ -319,7 +318,7 @@ public class PermitFileCheck extends AbstractPermitCheck {
         return new FirstArgMkdirs();
     }
 
-    private class TargetMkdirs extends Insert {
+    private class TargetMkdirs extends EnterInsert {
         @Override
         public void onEnterImpl(Hook hook) {
             File f = (File)hook.target();
@@ -339,7 +338,7 @@ public class PermitFileCheck extends AbstractPermitCheck {
     }
 
 
-    private class RenameToInsert extends Insert {
+    private class RenameToInsert extends EnterInsert {
         @Override
         public void onEnterImpl(Hook hook) {
             checkWrite(getCanonicalPath((File)hook.target()), hook);
@@ -350,7 +349,7 @@ public class PermitFileCheck extends AbstractPermitCheck {
         return new RenameToInsert();
     }
 
-    private class TwoArgsReadWriteInsert extends Insert {
+    private class TwoArgsReadWriteInsert extends EnterInsert {
         @Override
         public void onEnterImpl(Hook hook) {
             checkRead(getCanonicalPathFromFirstArg(hook), hook);        
@@ -361,7 +360,7 @@ public class PermitFileCheck extends AbstractPermitCheck {
         return new TwoArgsReadWriteInsert();
     }
 
-    private class TwoArgsWriteInsert extends Insert {
+    private class TwoArgsWriteInsert extends EnterInsert {
         @Override
         public void onEnterImpl(Hook hook) {
             checkWrite(getCanonicalPathFromFirstArg(hook), hook);        
@@ -372,7 +371,7 @@ public class PermitFileCheck extends AbstractPermitCheck {
         return new TwoArgsWriteInsert();
     }
 
-    private class TwoArgsReadInsert extends Insert {
+    private class TwoArgsReadInsert extends EnterInsert {
         @Override
         public void onEnterImpl(Hook hook) {
             checkRead(getCanonicalPathFromFirstArg(hook), hook);        
@@ -383,7 +382,7 @@ public class PermitFileCheck extends AbstractPermitCheck {
         return new TwoArgsReadInsert();
     }
 
-    private class ZipFileConstructorInsert extends Insert {
+    private class ZipFileConstructorInsert extends EnterInsert {
         @Override
         public void onEnterImpl(Hook hook) {
             checkRead(getCanonicalPathFromFirstArg(hook), hook);
@@ -401,7 +400,7 @@ public class PermitFileCheck extends AbstractPermitCheck {
         return new ZipFileConstructorInsert();
     }
 
-    private class RandomAccessFileConstructorInsert extends Insert {
+    private class RandomAccessFileConstructorInsert extends EnterInsert {
         @Override
         public void onEnterImpl(Hook hook) {
             String path = getCanonicalPathFromFirstArg(hook);
@@ -425,7 +424,7 @@ public class PermitFileCheck extends AbstractPermitCheck {
         return new RandomAccessFileConstructorInsert();
     }
 
-    private class ProcessBuilderStartInsert extends Insert {
+    private class ProcessBuilderStartInsert extends EnterInsert {
         @Override
         public void onEnterImpl(Hook hook) {
             String prog = ((ProcessBuilder)hook.target()).command().get(0);
@@ -440,7 +439,7 @@ public class PermitFileCheck extends AbstractPermitCheck {
         return new ProcessBuilderStartInsert();
     }
 
-    private class FileCreateTempFileInsert extends Insert {
+    private class FileCreateTempFileInsert extends EnterInsert {
         @Override
         public void onEnterImpl(Hook hook) {
             if (hook.args().length < 2) {

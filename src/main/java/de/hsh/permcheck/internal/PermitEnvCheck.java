@@ -10,7 +10,7 @@ public class PermitEnvCheck extends BasicPermitCheck {
     }
 
     @Override
-    protected void registerImpl(Map<Executable, Insert> registry) throws Exception {
+    protected void registerImpl(Registry registry) throws Exception {
         // permit.env NAME
         registry.put(System.class.getDeclaredMethod("getenv", String.class), firstArg(Action.ACCESS));
 

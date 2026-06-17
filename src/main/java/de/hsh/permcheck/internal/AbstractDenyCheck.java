@@ -17,7 +17,7 @@ public abstract class AbstractDenyCheck extends AbstractCheck {
         return "deny."+getCheckName();
     }
 
-    public Insert deny() {
+    public DenyAllInsert deny() {
         return insert;
     }
 

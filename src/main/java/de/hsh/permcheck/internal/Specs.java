@@ -1,6 +1,7 @@
 package de.hsh.permcheck.internal;
 
 import java.lang.reflect.Executable;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.regex.Pattern;
@@ -9,16 +10,22 @@ public class Specs {
 
     private static Specs mySpecs;
 
-    private LinkedHashMap<Executable, Insert> registry;
+    private LinkedHashMap<Executable, ArrayList<Insert>> registry;
 
-    private LinkedHashSet<String> untrustedClasses;
+    /**
+     * Contains either compiled Patterns or Strings:
+     */
+    private LinkedHashSet<Object> untrustedClasses;
 
     private String password;
     private boolean isActive;
 
-    private String[] privilege = new String[10];
+    /**
+     * Contains either compiled Patterns or Strings:
+     */
+    private Object[] privilege = new Object[10];
     private int numPrivilege = 0;
-
+    
     private int verbose;
 
     private void specVerbose(String val) {
@@ -41,12 +48,25 @@ public class Specs {
 
     private void addPrivilege(String spec) {
         if (numPrivilege == privilege.length) {
-            String[] arr = new String[privilege.length * 2];
+            Object[] arr = new Object[privilege.length * 2];
             System.arraycopy(privilege, 0, arr, 0, privilege.length);
             privilege = arr;
         }
-        privilege[mySpecs.numPrivilege] = spec;
+        
+        if (spec.startsWith("^") && spec.endsWith("$")) {
+            privilege[mySpecs.numPrivilege] = Pattern.compile(spec);
+        } else {
+            privilege[mySpecs.numPrivilege] = spec;
+        }
         numPrivilege++;
+    }
+
+    private void addUntrustedClass(String uc) {
+        if (uc.startsWith("^") && uc.endsWith("$")) {
+            untrustedClasses.add(Pattern.compile(uc));
+        } else {
+            untrustedClasses.add(uc);
+        }
     }
 
 
@@ -105,10 +125,10 @@ public class Specs {
                     mySpecs.specVerbose(value);
                     break;
                 case "distrust.plain":
-                    mySpecs.untrustedClasses.add(value);
+                    mySpecs.addUntrustedClass(value);
                     break;
                 case "distrust.regex":
-                    mySpecs.untrustedClasses.add("^"+value+"$");
+                    mySpecs.addUntrustedClass("^"+value+"$");
                     break;
                 case "privilege.plain":
                     mySpecs.addPrivilege(value);
@@ -140,14 +160,14 @@ public class Specs {
         return mySpecs.registry.keySet();
     }
 
-    public static Insert getInsert(Executable executable) {
+    public static ArrayList<Insert> getInserts(Executable executable) {
         return mySpecs.registry.get(executable);
     }
 
     public static boolean isUntrustedClass(String clazz) {
-        for (String uc : mySpecs.untrustedClasses) {
-            if (uc.startsWith("^") && uc.endsWith("$")) {
-                if (Pattern.matches(uc, clazz)) {
+        for (Object uc : mySpecs.untrustedClasses) {
+            if (uc instanceof Pattern) {
+                if (((Pattern)uc).matcher(clazz).matches()) {
                     //System.out.println("Class "+clazz+" is untrusted");                    
                     return true;
                 }
@@ -157,14 +177,13 @@ public class Specs {
             }
         }
         return false;
-        //return mySpecs.untrustedClasses.contains(clazz);
     }
 
     public static boolean isPrivileged(String mcm) {
-        for (String t : mySpecs.privilege) {
+        for (Object t : mySpecs.privilege) {
             if (t == null) break; // end of array
-            if (t.startsWith("^") && t.endsWith("$")) {
-                if (Pattern.matches(t, mcm)) {
+            if (t instanceof Pattern) {
+                if (((Pattern)t).matcher(mcm).matches()) {
                     return true;
                 }
             } else if (t.equals(mcm)) {
@@ -195,7 +214,7 @@ public class Specs {
         return (mySpecs.verbose & vc.val()) != 0;
     }
 
-    public static String[] getPrivilege() {
+    public static Object[] getPrivilege() {
         return mySpecs.privilege;
     }
 

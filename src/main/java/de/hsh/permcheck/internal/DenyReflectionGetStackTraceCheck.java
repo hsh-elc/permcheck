@@ -1,15 +1,12 @@
 package de.hsh.permcheck.internal;
 
-import java.lang.reflect.Executable;
-import java.util.Map;
-
 public class DenyReflectionGetStackTraceCheck extends AbstractDenyCheck {
     public DenyReflectionGetStackTraceCheck() {
         super("reflectionGetStackTrace", "deny.reflectionGetStackTrace");
     }
 
     @Override
-    protected void registerImpl(Map<Executable, Insert> registry) throws Exception {
+    protected void registerImpl(Registry registry) throws Exception {
         registry.put(
                 Thread.class.getDeclaredMethod("getStackTrace"),
                 denyNotCurrentThread());
@@ -19,7 +16,7 @@ public class DenyReflectionGetStackTraceCheck extends AbstractDenyCheck {
     }
 
 
-    private class DenyNotCurrentThread extends Insert {
+    private class DenyNotCurrentThread extends EnterInsert {
         @Override
         public void onEnterImpl(Hook hook) {
             Thread thread = getTarget(hook, Thread.class);

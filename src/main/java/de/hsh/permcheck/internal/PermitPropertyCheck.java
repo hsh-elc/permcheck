@@ -12,7 +12,7 @@ public class PermitPropertyCheck extends BasicPermitCheck {
     }
 
     @Override
-    protected void registerImpl(Map<Executable, Insert> registry) throws Exception {
+    protected void registerImpl(Registry registry) throws Exception {
         registry.put(System.class.getDeclaredMethod("getProperty", String.class), firstArg(Action.READ));
         registry.put(System.class.getDeclaredMethod("getProperty", String.class, String.class), firstArg(Action.READ));
         registry.put(System.class.getDeclaredMethod("getProperties"), any(Action.READ, Action.WRITE));
@@ -29,8 +29,7 @@ public class PermitPropertyCheck extends BasicPermitCheck {
         registry.put(Locale.class.getDeclaredMethod("setDefault", Locale.Category.class, Locale.class), localeSetDefault());
     }
 
-
-    private class TimeZoneSetDefaultInsert extends Insert {
+    private class TimeZoneSetDefaultInsert extends EnterInsert {
         @Override
         public void onEnterImpl(Hook hook) {
             checkWrite("user.timezone", hook);
@@ -42,7 +41,7 @@ public class PermitPropertyCheck extends BasicPermitCheck {
     }
 
 
-    private class LocaleSetDefaultInsert extends Insert {
+    private class LocaleSetDefaultInsert extends EnterInsert {
         @Override
         public void onEnterImpl(Hook hook) {
             checkWrite("user.language", hook);

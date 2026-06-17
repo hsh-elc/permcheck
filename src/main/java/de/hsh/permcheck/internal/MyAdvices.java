@@ -4,13 +4,32 @@ import java.lang.reflect.Constructor;
 import java.lang.reflect.Executable;
 import java.lang.reflect.Method;
 import java.lang.reflect.Parameter;
+import java.util.ArrayList;
 
 import net.bytebuddy.asm.Advice;
 import net.bytebuddy.implementation.bytecode.assign.Assigner.Typing;
 
 public class MyAdvices {
+    
+    /**
+     * The class initializing of MyAdvices leads to some calls of the Java standard library, which in turn call 
+     * the below enter and exit methods. As long as the initialization of MyAdvices.class is on progress, 
+     * we should not check any permissions. Hence, we set {@code MyAdvices.initialized} to false in the first line
+     * of this class. The last line of this class is a static initializer, that sets {@code MyAdvices.initialized} to
+     * true.
+     */
+    private static boolean initialized;
+
+    /**
+     * This threadlocal Boolean prevents entering enter/exit when we are already in
+     * enter or exit. This threadlocal prevents cycles. All standard library method calls inside enter/exit
+     * are assumed to be privileged.
+     */
+    private static ThreadLocal<Boolean> INSIDE = ThreadLocal.withInitial(() -> Boolean.FALSE);
 
     private static ThreadLocal<String[]> CALLSTACK = null;
+
+
 
     private static String convert(Executable e) {
         StringBuilder sb = new StringBuilder();
@@ -36,6 +55,20 @@ public class MyAdvices {
         return sb.toString();
     }
 
+    private static boolean tryToGetInside() {
+        if (INSIDE == null) {
+            INSIDE = new ThreadLocal<>();
+            INSIDE = ThreadLocal.withInitial(() -> Boolean.FALSE);
+        }
+        if (INSIDE.get().equals(Boolean.TRUE)) return false;
+        INSIDE.set(Boolean.TRUE);
+        return true;
+    }
+
+    private static void leaveInside() {
+        if (INSIDE == null) return;
+        INSIDE.set(Boolean.FALSE);
+    }
 
     private static String[] getCallStack() {
         if (CALLSTACK == null) {
@@ -74,7 +107,7 @@ public class MyAdvices {
         String[] stk = CALLSTACK.get();
         stk[topIndex] = null;
     }
-    
+
     @Advice.OnMethodEnter(inline = false)
     public static void enter(@Advice.Origin String origin,
                       @Advice.Origin("#t #m") String detaildOrigin,
@@ -82,53 +115,53 @@ public class MyAdvices {
                       @Advice.This(optional = true) Object target,
                       @Advice.Origin Executable originExecutable,
                       @Advice.AllArguments Object[] ary) {
+        if (!initialized) return;
         if (!Specs.isActive()) return;
 
-        // When this advice determines the stack trace, classes are loaded, which in turn
-        // leads to a call to, for example, File.exists(), which itself should be instrumented.
-        // Such cycles are broken by the following statements.
-
-        if (getCallStack() == null) {
-            // We are in the middle of the unfinished creation of the class variable CALLSTACK
-            // This is definitely not called from distrusted classes, so we can safely
-            // skip permission checks.
-            return;
+        if (!tryToGetInside()) {
+            return; // cycle
         }
-
-        int topIndex = pushIfNotOnCallStack(originExecutable);
-        if (topIndex < 0) { // already on call stack?
-            return; // prevent cycle
-        }
-
         try {
-            Hook hook = new Hook(originClazz, target, originExecutable, ary);
-            log(VerboseCategory.TRACE, "[PERMCHECK] onMethodEnter: ", hook);
             
-            Insert insert = Specs.getInsert(originExecutable);
-            if (insert == null) return;
-           
-            // boolean isCalledFromSubmission = false;
-            // StackTraceElement[] trace = Thread.currentThread().getStackTrace();
-            // outerloop:
-            // for (StackTraceElement e : trace) {
-            //     String mcm = e.getModuleName() + "/" + e.getClassName() + "#" + e.getMethodName();
-            //     for (String t : Specs.getPrivilege()) {
-            //         if (t == null) break;
-            //         if (t.equals(mcm)) {
-            //             break outerloop;
-            //         }
-            //     }
-            //     if (Specs.isUntrustedClass(e.getClassName())) {
-            //         isCalledFromSubmission = true;
-            //         break outerloop;
-            //     }
-            // }
-            
-            if (!isCalledFromSubmission()) return;
-            
-            insert.onEnter(hook);
+            ArrayList<Insert> inserts = Specs.getInserts(originExecutable);
+            if (inserts == null) return;
+        
+            // When this advice determines the stack trace, classes are loaded, which in turn
+            // leads to a call to, for example, File.exists(), which itself should be instrumented.
+            // Such cycles are broken by the following statements.
+
+            if (getCallStack() == null) {
+                // We are in the middle of the unfinished creation of the class variable CALLSTACK
+                // This is definitely not called from distrusted classes, so we can safely
+                // skip permission checks.
+                return;
+            }
+
+            int topIndex = pushIfNotOnCallStack(originExecutable);
+            if (topIndex < 0) { // already on call stack?
+                return; // prevent cycle
+            }
+
+            try {
+                Hook hook = new Hook(originClazz, target, originExecutable, ary);
+                log(VerboseCategory.TRACE, "[PERMCHECK] onMethodEnter: ", hook);
+                
+                boolean[] stackInfo = isCalledFromSubmission(MyAdvices.class);
+                if (!stackInfo[1]) {
+                    // not untrusted
+                    return; 
+                }
+
+                for (Insert insert : inserts) {
+                    if (insert instanceof EnterInsert) {
+                        insert.onEnter(hook);
+                    }
+                }
+            } finally {
+                popCallStack(topIndex);
+            }
         } finally {
-            popCallStack(topIndex);
+            leaveInside();
         }
     }
 
@@ -140,46 +173,69 @@ public class MyAdvices {
                       @Advice.Origin Executable originExecutable,
                       @Advice.AllArguments Object[] ary,
                       @Advice.Return(typing = Typing.DYNAMIC) Object result) {
+        if (!initialized) return;
         if (!Specs.isActive()) return;
 
-        if (getCallStack() == null) {
-            // We are in the middle of the unfinished creation of the class variable CALLSTACK
-            // This is definitely not called from distrusted classes, so we can safely
-            // skip permission checks.
-            return;
+        if (!tryToGetInside()) {
+            return; // cycle
         }
-
-        int topIndex = pushIfNotOnCallStack(originExecutable);
-        if (topIndex < 0) // already on call stack?
-            return; // prevent cycle
-
         try {
-            Hook hook = new Hook(originClazz, target, originExecutable, ary);
-            log(VerboseCategory.TRACE, "[PERMCHECK] onMethodExit: ", hook);
+            
+            ArrayList<Insert> inserts = Specs.getInserts(originExecutable);
+            if (inserts == null) return;
 
-            Insert insert = Specs.getInsert(originExecutable);
-            if (insert == null) return;
-
-            if (insert.callOnExitFromDistrustedCodeOnly()) {
-                if (!isCalledFromSubmission()) return;
+            if (getCallStack() == null) {
+                // We are in the middle of the unfinished creation of the class variable CALLSTACK
+                // This is definitely not called from distrusted classes, so we can safely
+                // skip permission checks.
+                return;
             }
 
-            insert.onExit(hook, result);
+            int topIndex = pushIfNotOnCallStack(originExecutable);
+            if (topIndex < 0) // already on call stack?
+                return; // prevent cycle
+
+            try {
+                Hook hook = new Hook(originClazz, target, originExecutable, ary);
+                log(VerboseCategory.TRACE, "[PERMCHECK] onMethodExit: ", hook);
+
+                boolean[] stackInfo = isCalledFromSubmission(MyAdvices.class);
+                if (!stackInfo[1]) {
+                    // not untrusted
+                    return; 
+                }
+
+                for (Insert insert : inserts) {
+                    if (insert instanceof ExitInsert) {
+                        insert.onExit(hook, result);
+                    }
+                }
+            } finally {
+                popCallStack(topIndex);
+            }
         } finally {
-            popCallStack(topIndex);
+            leaveInside();
         }
     }
 
-    private static boolean isCalledFromSubmission() {
-        boolean isCalledFromSubmission = false;
+    /**
+     * 
+     * @param caller
+     * @return two booleans signaling, which one of the following two events occured first when climbing
+     *         up the call stack: (isPrivileged, isUntrustedClass). If both booleans are false, then none of
+     *         the events occurred.
+     */
+    private static boolean[] isCalledFromSubmission(Class<? extends MyAdvices> caller) {
+        boolean isUntrustedClass = false;
+        boolean isPrivileged = false;
         StackTraceElement[] trace = Thread.currentThread().getStackTrace();
         boolean leftMyAdvices = false;
         outerloop:
         for (int i = 1; i < trace.length; i++) {
             StackTraceElement e= trace[i];
-            if (MyAdvices.class.getName().equals(e.getClassName())) {
+            if (caller.getName().equals(e.getClassName())) {
                 if (leftMyAdvices) {
-                    // reentered MyAdvice. This is a cycle.
+                    // reentered My...Advice. This is a cycle.
                     break outerloop;
                 }
             } else {
@@ -188,15 +244,16 @@ public class MyAdvices {
             
             String mcm = e.getModuleName() + "/" + e.getClassName() + "#" + e.getMethodName();
             if (Specs.isPrivileged(mcm)) {
+                isPrivileged = true;
                 break outerloop;
             }
             
             if (Specs.isUntrustedClass(e.getClassName())) {
-                isCalledFromSubmission = true;
+                isUntrustedClass = true;
                 break outerloop;
             }
         }
-        return isCalledFromSubmission;
+        return new boolean[] { isPrivileged, isUntrustedClass };
     }
 
     private static void log(VerboseCategory vc, String prefix, Hook hook) {
@@ -205,5 +262,10 @@ public class MyAdvices {
         msg.append(prefix);
         msg.append(hook.pretty());
         System.out.println(msg.toString());
+    }
+
+    // This mus be the last static initializer inside MyAdvices:
+    static {
+        MyAdvices.initialized = true;
     }
 }

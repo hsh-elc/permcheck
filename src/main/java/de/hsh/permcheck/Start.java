@@ -13,6 +13,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
 
+import de.hsh.permcheck.internal.EnterInsert;
+import de.hsh.permcheck.internal.ExitInsert;
 import de.hsh.permcheck.internal.Insert;
 import de.hsh.permcheck.internal.Spec;
 import de.hsh.permcheck.internal.Specs;
@@ -31,6 +33,8 @@ import net.bytebuddy.pool.TypePool;
 
 public class Start {
 
+    private static boolean byteBuddyIsConfigured = false;
+    
     // static {
     //     System.out.println("Klasse " + Start.class + " geladen durch: " + Start.class.getClassLoader());
     //     new Exception().printStackTrace(System.out);
@@ -94,15 +98,19 @@ public class Start {
                 "MyAdvices", 
                 "Hook", 
                 "Helper", 
+                "PermcheckException",
                 "Logger", 
                 "Spec",
                 "Specs",
                 "Action",
                 "Insert",
+                "EnterInsert",
+                "ExitInsert",
                 "ActionInsert",
                 "DenyAllInsert",
 
                 "AbstractCheck",
+                "AbstractCheck$Registry",
 
                 "AbstractDenyCheck",
                 "DenyExitVmCheck",
@@ -149,7 +157,7 @@ public class Start {
 
 // System.out.println("Before injecting of internal permcheck classes into boottsrap classloader ...");
 // Scanner console = new Scanner(System.in);
-//console.nextLine();
+// console.nextLine();
         for (String className : classNames) {
 // System.out.println("className: " + className);
             Map<TypeDescription, byte[]> types = new ByteBuddy()
@@ -166,7 +174,7 @@ public class Start {
         }
 
 // System.out.println("After injecting of internal permcheck classes into boottsrap classloader ...");
-//console.nextLine();
+// console.nextLine();
 
 // try {
 //     System.out.println("Specs Klasse wurde geladen von:");
@@ -190,8 +198,9 @@ public class Start {
         for (Executable e : Specs.getExecutables()) {
             Class<?> c = e.getDeclaringClass();
             if (!map.containsKey(c)) map.put(c, new ArrayList<>());
-            Insert insert = Specs.getInsert(e);
-            map.get(c).add(new Spec(e, insert));
+            for (Insert insert : Specs.getInserts(e)) {
+                map.get(c).add(new Spec(e, insert));
+            }
         }
 
         AgentBuilder agentBuilder = new AgentBuilder.Default()
@@ -229,6 +238,7 @@ public class Start {
                     } else {
                         throw new Error("Unexpected Executable of type " + e.getClass());
                     }
+
                     builder = builder.visit(Advice.to(myAdvicesTd).on(ElementMatchers.is(md)));
                 }
                 return builder;
@@ -236,7 +246,9 @@ public class Start {
             
             agentBuilder = narrowable.transform(transformer).asTerminalTransformation();
         }
+        
         agentBuilder.installOn(instrumentation);
+        byteBuddyIsConfigured = true;
     }
 
     public static void pause(String password) {
@@ -250,5 +262,10 @@ public class Start {
     public static Boolean isActive(String password) {
         return Specs.isActive(password);
     }
+    
+    public static boolean isInitialized() {
+        return byteBuddyIsConfigured;
+    }
+
     
 }
