@@ -228,6 +228,11 @@ privilege.plain javafx.graphics/javafx.stage.Window#show
 privilege.plain javafx.graphics/com.sun.javafx.font.PrismFontFactory#getFontFactory
 privilege.plain javafx.graphics/com.sun.javafx.font.PrismFontFactory#getFontResource
 privilege.plain javafx.graphics/com.sun.javafx.font.PrismFontFactory#getDefaultFontResource
+privilege.plain null/de.hsh.permcheck.internal.MyUntrustedClassAdvices#enter
+privilege.plain null/de.hsh.permcheck.internal.MyUntrustedClassAdvices#exit
+privilege.plain null/de.hsh.permcheck.internal.MyUntrustedClassAdvices#<clinit>
+privilege.plain null/de.hsh.permcheck.internal.MyUntrustedClassAdvices#enterConstructor
+privilege.plain null/de.hsh.permcheck.internal.MyUntrustedClassAdvices#exitConstructor
 
 # We assign privileges to many test factory methods, since these methods need
 # to prepare files and classes before instantiating TestCase objects.

@@ -4,6 +4,7 @@ import java.lang.reflect.Executable;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.regex.Pattern;
 
 public class Specs {
@@ -162,6 +163,20 @@ public class Specs {
 
     public static ArrayList<Insert> getInserts(Executable executable) {
         return mySpecs.registry.get(executable);
+    }
+
+    public static List<String> getUntrustedClassRegexes() {
+        ArrayList<String> result = new ArrayList<>();
+        for (Object o : mySpecs.untrustedClasses) {
+            if (o instanceof Pattern) {
+                result.add(((Pattern)o).pattern());
+            } else if (o instanceof String) {
+                result.add("^"+(String)o+"$");
+            } else {
+                throw new Error("Internal error in permcheck: unexpected untrusteClass object of type " + (o==null?null:o.getClass()));
+            }
+        }
+        return result;
     }
 
     public static boolean isUntrustedClass(String clazz) {

@@ -63,6 +63,8 @@ import de.hsh.permcheck.internal.MyAdvices;
 import de.hsh.permcheck.internal.PermcheckException;
 import grader.Grader;
 import grader.TestRunner;
+import net.bytebuddy.dynamic.ClassFileLocator;
+import net.bytebuddy.pool.TypePool;
 
 /**
  * This class runs test cases.
@@ -135,7 +137,8 @@ public class TestMain {
             }
         } finally {
             // System.out.println("Enter to finish...");
-            // System.in.read();
+            // Scanner console = new Scanner(System.in);
+            // console.nextLine();
         }
     }
 
@@ -227,11 +230,6 @@ public class TestMain {
         }
     }
 
-
-    @Retention(RetentionPolicy.RUNTIME)
-    @Target(ElementType.METHOD)
-    private static @interface TestCaseFactory {
-    }
 
     @TestCaseFactory
     private static List<TestCase> testNoAttack() {

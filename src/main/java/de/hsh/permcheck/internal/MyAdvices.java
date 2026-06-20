@@ -5,6 +5,7 @@ import java.lang.reflect.Executable;
 import java.lang.reflect.Method;
 import java.lang.reflect.Parameter;
 import java.util.ArrayList;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import net.bytebuddy.asm.Advice;
 import net.bytebuddy.implementation.bytecode.assign.Assigner.Typing;
@@ -29,6 +30,8 @@ public class MyAdvices {
 
     private static ThreadLocal<String[]> CALLSTACK = null;
 
+
+    static ThreadLocal<AtomicInteger> UNTRUSTED_CALL_DEPTH = ThreadLocal.withInitial(() -> new AtomicInteger());
 
 
     private static String convert(Executable e) {
@@ -226,9 +229,13 @@ public class MyAdvices {
      *         the events occurred.
      */
     private static boolean[] isCalledFromSubmission(Class<? extends MyAdvices> caller) {
+int depth = UNTRUSTED_CALL_DEPTH.get().get();
         boolean isUntrustedClass = false;
         boolean isPrivileged = false;
+//if (depth == 0) return new boolean[] { isPrivileged, isUntrustedClass };
         StackTraceElement[] trace = Thread.currentThread().getStackTrace();
+//System.out.println("isCalledFromSubmission ...");
+// for (StackTraceElement e : trace) System.out.println("    "+e);
         boolean leftMyAdvices = false;
         outerloop:
         for (int i = 1; i < trace.length; i++) {
@@ -236,6 +243,10 @@ public class MyAdvices {
             if (caller.getName().equals(e.getClassName())) {
                 if (leftMyAdvices) {
                     // reentered My...Advice. This is a cycle.
+if (depth == 0 && isUntrustedClass || depth != 0 && !(isUntrustedClass || isPrivileged) && MyUntrustedClassAdvices.initialized ) {
+    System.out.println("depth = "+depth+", reentered MyAdvices: isUntrustedClass="+isUntrustedClass+", isPrivileged="+isPrivileged);
+    for (StackTraceElement el : trace) System.out.println("    "+el);
+}
                     break outerloop;
                 }
             } else {
@@ -245,11 +256,19 @@ public class MyAdvices {
             String mcm = e.getModuleName() + "/" + e.getClassName() + "#" + e.getMethodName();
             if (Specs.isPrivileged(mcm)) {
                 isPrivileged = true;
+if (depth == 0 && isUntrustedClass || depth != 0 && !(isUntrustedClass || isPrivileged) && MyUntrustedClassAdvices.initialized ) {
+    System.out.println("depth = "+depth+", isUntrustedClass="+isUntrustedClass+", isPrivileged="+isPrivileged+", mcm="+mcm);
+    for (StackTraceElement el : trace) System.out.println("    "+el);
+}
                 break outerloop;
             }
             
             if (Specs.isUntrustedClass(e.getClassName())) {
                 isUntrustedClass = true;
+if (depth == 0 && isUntrustedClass || depth != 0 && !(isUntrustedClass || isPrivileged) && MyUntrustedClassAdvices.initialized ) {
+    System.out.println("depth = "+depth+", isUntrustedClass="+isUntrustedClass);
+    for (StackTraceElement el : trace) System.out.println("    "+el);
+}
                 break outerloop;
             }
         }
