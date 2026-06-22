@@ -65,7 +65,7 @@ jobs:
           mkdir "$destdir"
           reponame="${GITHUB_REPOSITORY#*/}"
           release=${{ env.RELEASE_VERSION }}
-          for suffix in ".jar" "-tests.jar" "-jar-with-dependencies.jar"
+          for suffix in ".jar" "-tests.jar" "-sources.jar" "-jar-with-dependencies.jar"
           do
               jarname="target/$reponame-$release$suffix"
               if [ -e $jarname ];  then

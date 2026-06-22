@@ -17,6 +17,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Scanner;
+import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
 import de.hsh.permcheck.internal.ConstructorVisitorWrapper;
@@ -46,6 +47,7 @@ import net.bytebuddy.implementation.bind.MethodDelegationBinder;
 import net.bytebuddy.jar.asm.ClassReader;
 import net.bytebuddy.jar.asm.Opcodes;
 import net.bytebuddy.jar.asm.MethodVisitor;
+import net.bytebuddy.matcher.ElementMatcher;
 import net.bytebuddy.matcher.ElementMatchers;
 import net.bytebuddy.pool.TypePool;
 import net.bytebuddy.utility.JavaModule;
@@ -231,6 +233,19 @@ public class Start {
         List<String> untustedClassRegexes = Specs.getUntrustedClassRegexes();
 
         AgentBuilder agentBuilderRedefine = new AgentBuilder.Default()
+// .with(new AgentBuilder.Listener.Filtering(
+//     new ElementMatcher<String>() {
+//         @Override
+//         public boolean matches(String arg0) {
+//             if (arg0.startsWith("geom") || arg0.startsWith("dom.circle") || arg0.startsWith("de.hsh.graja.modules.junit.SubmissionClassLoader")) {
+//                 System.out.println("Filter.matches('"+arg0+"'): true");
+//                 new Exception().printStackTrace(System.out);
+//                 return true;
+//             }
+//             return false;
+//         }
+//     },
+// AgentBuilder.Listener.StreamWriting.toSystemOut()))
             .disableClassFormatChanges();
 
         if (Specs.verboseInstall()) {
@@ -256,7 +271,21 @@ public class Start {
         // First transform the untrusted classes:
         for (String ucRegex : untustedClassRegexes) {
             Narrowable narrowable = agentBuilderRedefine.type( 
-                    ElementMatchers.nameMatches(ucRegex)
+                // Debugging:
+                // new ElementMatcher<TypeDescription>() {
+                //     @Override
+                //     public boolean matches(TypeDescription td) {
+                //         if (td.getName().startsWith("geom") || td.getName().startsWith("de.hsh")) {
+                //             System.out.print("Matching td="+td.getName()+" against "+ucRegex+" ... ");
+                //         }
+                //         boolean result = Pattern.compile(ucRegex).matcher(td.getName()).matches();
+                //         if (td.getName().startsWith("geom") || td.getName().startsWith("de.hsh")) {
+                //             System.out.println(result);
+                //         }
+                //         return result;
+                //     }
+                // }
+                ElementMatchers.nameMatches(ucRegex)
             );
 
             Transformer transformer = (builder, typeDescription, classLoader, module, protectionDomain) -> {
