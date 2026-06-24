@@ -4,7 +4,10 @@ import java.lang.reflect.Constructor;
 import java.lang.reflect.Executable;
 import java.lang.reflect.Method;
 import java.lang.reflect.Parameter;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Formatter;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import net.bytebuddy.asm.Advice;
@@ -32,6 +35,7 @@ public class MyAdvices {
 
 
     static ThreadLocal<AtomicInteger> UNTRUSTED_CALL_DEPTH = ThreadLocal.withInitial(() -> new AtomicInteger());
+    static ThreadLocal<ArrayDeque<Boolean>> UNTRUSTED_CALLED = ThreadLocal.withInitial(() -> { ArrayDeque<Boolean> s = new ArrayDeque<>(); s.push(false); return s; });
 
 
     private static String convert(Executable e) {
@@ -120,55 +124,15 @@ public class MyAdvices {
                       @Advice.AllArguments Object[] ary) {
         if (!initialized) return;
         if (!Specs.isActive()) return;
-
-        if (!tryToGetInside()) {
-            return; // cycle
-        }
+        if (!tryToGetInside()) return; // cycle
         try {
-            
-            ArrayList<Insert> inserts = Specs.getInserts(originExecutable);
-            if (inserts == null) return;
-        
-            // When this advice determines the stack trace, classes are loaded, which in turn
-            // leads to a call to, for example, File.exists(), which itself should be instrumented.
-            // Such cycles are broken by the following statements.
-
-            if (getCallStack() == null) {
-                // We are in the middle of the unfinished creation of the class variable CALLSTACK
-                // This is definitely not called from distrusted classes, so we can safely
-                // skip permission checks.
-                return;
-            }
-
-            int topIndex = pushIfNotOnCallStack(originExecutable);
-            if (topIndex < 0) { // already on call stack?
-                return; // prevent cycle
-            }
-
-            try {
-                Hook hook = new Hook(originClazz, target, originExecutable, ary);
-                log(VerboseCategory.TRACE, "[PERMCHECK] onMethodEnter: ", hook);
-                
-                boolean[] stackInfo = isCalledFromSubmission(MyAdvices.class);
-                if (!stackInfo[1]) {
-                    // not untrusted
-                    return; 
-                }
-
-                for (Insert insert : inserts) {
-                    if (insert instanceof EnterInsert) {
-                        insert.onEnter(hook);
-                    }
-                }
-            } finally {
-                popCallStack(topIndex);
-            }
+            enterImpl(originClazz, target, originExecutable, ary);
         } finally {
             leaveInside();
         }
     }
 
-    @Advice.OnMethodExit(inline = false)
+    @Advice.OnMethodExit(inline = false, onThrowable = Throwable.class)
     public static void exit(@Advice.Origin String origin,
                       @Advice.Origin("#t #m") String detaildOrigin,
                       @Advice.Origin Class<?> originClazz,
@@ -178,48 +142,166 @@ public class MyAdvices {
                       @Advice.Return(typing = Typing.DYNAMIC) Object result) {
         if (!initialized) return;
         if (!Specs.isActive()) return;
-
-        if (!tryToGetInside()) {
-            return; // cycle
-        }
+        if (!tryToGetInside()) return; // cycle
         try {
-            
-            ArrayList<Insert> inserts = Specs.getInserts(originExecutable);
-            if (inserts == null) return;
-
-            if (getCallStack() == null) {
-                // We are in the middle of the unfinished creation of the class variable CALLSTACK
-                // This is definitely not called from distrusted classes, so we can safely
-                // skip permission checks.
-                return;
-            }
-
-            int topIndex = pushIfNotOnCallStack(originExecutable);
-            if (topIndex < 0) // already on call stack?
-                return; // prevent cycle
-
-            try {
-                Hook hook = new Hook(originClazz, target, originExecutable, ary);
-                log(VerboseCategory.TRACE, "[PERMCHECK] onMethodExit: ", hook);
-
-                boolean[] stackInfo = isCalledFromSubmission(MyAdvices.class);
-                if (!stackInfo[1]) {
-                    // not untrusted
-                    return; 
-                }
-
-                for (Insert insert : inserts) {
-                    if (insert instanceof ExitInsert) {
-                        insert.onExit(hook, result);
-                    }
-                }
-            } finally {
-                popCallStack(topIndex);
-            }
+            exitImpl(originClazz, target, originExecutable, ary, result);
         } finally {
             leaveInside();
         }
     }
+
+    public static void enterConstructor(String className, Object[] args, String[] paramTypeNames) {
+logConstructorCall("enterConstructor", className, args, paramTypeNames);
+       
+        if (!initialized) return;
+        if (!Specs.isActive()) return;
+        if (!tryToGetInside()) return; // cycle
+        try {
+            Class<?> clazz = null;
+            Constructor<?> constructor = null;
+            try {
+                clazz = Class.forName(className);
+                constructor = findConstructorByNames(clazz, paramTypeNames);
+            } catch (ClassNotFoundException | NoSuchMethodException e) {
+                throw new Error("Internal error in permcheck library", e);
+            }
+            enterImpl(clazz, null, constructor, args);
+        } finally {
+            leaveInside();
+        }
+    }
+
+    public static void exitConstructor(String className, Object[] args, String[] paramTypeNames) {
+logConstructorCall("exitConstructor", className, args, paramTypeNames);
+        if (!initialized) return;
+        if (!Specs.isActive()) return;
+        if (!tryToGetInside()) return; // cycle
+        try {
+            Class<?> clazz = null;
+            Constructor<?> constructor = null;
+            try {
+                clazz = Class.forName(className);
+                constructor = findConstructorByNames(clazz, paramTypeNames);
+            } catch (ClassNotFoundException | NoSuchMethodException e) {
+                throw new Error("Internal error in permcheck library", e);
+            }
+            exitImpl(clazz, null, constructor, args, null);
+        } finally {
+            leaveInside();
+        }
+    }
+
+    static void logConstructorCall(String enterOrExit, String className, Object[] args, String[] paramTypeNames) {
+System.out.print(enterOrExit);
+System.out.print(" className=");
+System.out.println(className);
+for (int i=0; i<args.length; i++) {
+    System.out.print("  arg[");
+    System.out.print(i);
+    System.out.print("] of type ");
+    System.out.print(paramTypeNames[i]);
+    System.out.print(" is ");
+    System.out.println(String.valueOf(args[i]));
+}
+System.out.println();
+
+    }
+
+    static Constructor<?> findConstructorByNames(Class<?> clazz, String[] paramTypeNames) throws NoSuchMethodException {
+        for (Constructor<?> c : clazz.getDeclaredConstructors()) {
+            Class<?>[] types = c.getParameterTypes();
+            if (types.length == paramTypeNames.length) {
+                boolean match = true;
+                for (int i = 0; i < types.length; i++) {
+                    if (!types[i].getName().equals(paramTypeNames[i])) {
+                        // Achtung: Hier ggf. für Primitiv-Typen prüfen
+                        match = false;
+                        break;
+                    }
+                }
+                if (match) return c;
+            }
+        }
+        throw new NoSuchMethodException("Kein passender Konstruktor für " + clazz.getName() + " mit Args: " + Arrays.toString(paramTypeNames));
+    }
+
+    
+
+    private static void enterImpl(Class<?> originClazz, Object target, Executable originExecutable, Object[] ary) {
+        ArrayList<Insert> inserts = Specs.getInserts(originExecutable);
+        if (inserts == null) return;
+    
+        // When this advice determines the stack trace, classes are loaded, which in turn
+        // leads to a call to, for example, File.exists(), which itself should be instrumented.
+        // Such cycles are broken by the following statements.
+
+        if (getCallStack() == null) {
+            // We are in the middle of the unfinished creation of the class variable CALLSTACK
+            // This is definitely not called from distrusted classes, so we can safely
+            // skip permission checks.
+            return;
+        }
+
+        int topIndex = pushIfNotOnCallStack(originExecutable);
+        if (topIndex < 0) { // already on call stack?
+            return; // prevent cycle
+        }
+
+        try {
+            Hook hook = new Hook(originClazz, target, originExecutable, ary);
+            log(VerboseCategory.TRACE, "[PERMCHECK] onMethodEnter: ", hook);
+            
+            boolean[] stackInfo = isCalledFromSubmission(MyAdvices.class);
+            if (!stackInfo[1]) {
+                // not untrusted
+                return; 
+            }
+
+            for (Insert insert : inserts) {
+                if (insert instanceof EnterInsert) {
+                    insert.onEnter(hook);
+                }
+            }
+        } finally {
+            popCallStack(topIndex);
+        }
+    }
+
+    private static void exitImpl(Class<?> originClazz, Object target, Executable originExecutable, Object[] ary, Object result) {
+        ArrayList<Insert> inserts = Specs.getInserts(originExecutable);
+        if (inserts == null) return;
+
+        if (getCallStack() == null) {
+            // We are in the middle of the unfinished creation of the class variable CALLSTACK
+            // This is definitely not called from distrusted classes, so we can safely
+            // skip permission checks.
+            return;
+        }
+
+        int topIndex = pushIfNotOnCallStack(originExecutable);
+        if (topIndex < 0) // already on call stack?
+            return; // prevent cycle
+
+        try {
+            Hook hook = new Hook(originClazz, target, originExecutable, ary);
+            log(VerboseCategory.TRACE, "[PERMCHECK] onMethodExit: ", hook);
+
+            boolean[] stackInfo = isCalledFromSubmission(MyAdvices.class);
+            if (!stackInfo[1]) {
+                // not untrusted
+                return; 
+            }
+
+            for (Insert insert : inserts) {
+                if (insert instanceof ExitInsert) {
+                    insert.onExit(hook, result);
+                }
+            }
+        } finally {
+            popCallStack(topIndex);
+        }
+    }
+
 
     /**
      * 
@@ -229,10 +311,12 @@ public class MyAdvices {
      *         the events occurred.
      */
     private static boolean[] isCalledFromSubmission(Class<? extends MyAdvices> caller) {
+boolean assertDepth = false;        
 int depth = UNTRUSTED_CALL_DEPTH.get().get();
+
         boolean isUntrustedClass = false;
         boolean isPrivileged = false;
-//if (depth == 0) return new boolean[] { isPrivileged, isUntrustedClass };
+if (depth == 0) return new boolean[] { isPrivileged, isUntrustedClass };
         StackTraceElement[] trace = Thread.currentThread().getStackTrace();
 //System.out.println("isCalledFromSubmission ...");
 // for (StackTraceElement e : trace) System.out.println("    "+e);
@@ -243,9 +327,16 @@ int depth = UNTRUSTED_CALL_DEPTH.get().get();
             if (caller.getName().equals(e.getClassName())) {
                 if (leftMyAdvices) {
                     // reentered My...Advice. This is a cycle.
-if (depth == 0 && isUntrustedClass || depth != 0 && !(isUntrustedClass || isPrivileged) && MyUntrustedClassAdvices.initialized ) {
-    System.out.println("depth = "+depth+", reentered MyAdvices: isUntrustedClass="+isUntrustedClass+", isPrivileged="+isPrivileged);
-    for (StackTraceElement el : trace) System.out.println("    "+el);
+
+if (assertDepth && MyUntrustedClassAdvices.initialized && MyUntrustedClassTypeInitializerAdvices.initialized) {
+    if (depth == 0 && isUntrustedClass || depth != 0 && !(isUntrustedClass || isPrivileged)) {
+        StringBuilder sb = new StringBuilder();
+        try (Formatter f = new Formatter(sb)) {
+            f.format("depth = %d, isUntrustedClass=%b, isPrivileged=%b%n", depth, isUntrustedClass, isPrivileged);
+            for (StackTraceElement el : trace) f.format("    %s%n", el.toString());
+            throw new Error("(1) unexpected depth in MyAdvices.isCalledFromSubmission\n"+f.toString());
+        }
+    }
 }
                     break outerloop;
                 }
@@ -256,18 +347,30 @@ if (depth == 0 && isUntrustedClass || depth != 0 && !(isUntrustedClass || isPriv
             String mcm = e.getModuleName() + "/" + e.getClassName() + "#" + e.getMethodName();
             if (Specs.isPrivileged(mcm)) {
                 isPrivileged = true;
-if (depth == 0 && isUntrustedClass || depth != 0 && !(isUntrustedClass || isPrivileged) && MyUntrustedClassAdvices.initialized ) {
-    System.out.println("depth = "+depth+", isUntrustedClass="+isUntrustedClass+", isPrivileged="+isPrivileged+", mcm="+mcm);
-    for (StackTraceElement el : trace) System.out.println("    "+el);
+if (assertDepth && MyUntrustedClassAdvices.initialized && MyUntrustedClassTypeInitializerAdvices.initialized) {
+    if (depth == 0 && isUntrustedClass || depth != 0 && !(isUntrustedClass || isPrivileged)) {
+        StringBuilder sb = new StringBuilder();
+        try (Formatter f = new Formatter(sb)) {
+            f.format("depth = %d, isUntrustedClass=%b, isPrivileged=%b, mcm=%s%n", depth, isUntrustedClass, isPrivileged, mcm);
+            for (StackTraceElement el : trace) f.format("    %s%n", el.toString());
+            throw new Error("(2) unexpected depth in MyAdvices.isCalledFromSubmission\n"+f.toString());
+        }
+    }
 }
                 break outerloop;
             }
             
             if (Specs.isUntrustedClass(e.getClassName())) {
                 isUntrustedClass = true;
-if (depth == 0 && isUntrustedClass || depth != 0 && !(isUntrustedClass || isPrivileged) && MyUntrustedClassAdvices.initialized ) {
-    System.out.println("depth = "+depth+", isUntrustedClass="+isUntrustedClass);
-    for (StackTraceElement el : trace) System.out.println("    "+el);
+if (assertDepth && MyUntrustedClassAdvices.initialized && MyUntrustedClassTypeInitializerAdvices.initialized) {
+    if (depth == 0 && isUntrustedClass || depth != 0 && !(isUntrustedClass || isPrivileged)) {
+        StringBuilder sb = new StringBuilder();
+        try (Formatter f = new Formatter(sb)) {
+            f.format("depth = %d, isUntrustedClass=%b, isPrivileged=%b%n", depth, isUntrustedClass, isPrivileged);
+            for (StackTraceElement el : trace) f.format("    %s%n", el.toString());
+            throw new Error("(3) unexpected depth in MyAdvices.isCalledFromSubmission\n"+f.toString());
+        }
+    }
 }
                 break outerloop;
             }

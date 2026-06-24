@@ -108,6 +108,9 @@ public class PermitFileCheck extends AbstractPermitCheck {
         registry.put(Files.class.getDeclaredMethod("copy", Path.class, Path.class, CopyOption[].class), twoArgsReadWrite());
         registry.put(RandomAccessFile.class.getDeclaredConstructor(File.class, String.class), randomAccessFileConstructor());
         registry.put(RandomAccessFile.class.getDeclaredConstructor(String.class, String.class), randomAccessFileConstructor());
+        // Since constructor instrumentation is not safely possible with a try catch block,
+        // we also need to instrument all private constructors:
+        registry.put(RandomAccessFile.class.getDeclaredConstructor(File.class, String.class, boolean.class), randomAccessFileConstructor());
 
         // write:
 

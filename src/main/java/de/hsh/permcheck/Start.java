@@ -1,12 +1,8 @@
 package de.hsh.permcheck;
 
-import java.beans.MethodDescriptor;
 import java.io.File;
 import java.io.IOException;
-import java.io.PrintWriter;
 import java.lang.instrument.Instrumentation;
-import java.lang.instrument.UnmodifiableClassException;
-import java.lang.invoke.MethodHandles;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Executable;
 import java.lang.reflect.Method;
@@ -16,15 +12,11 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Scanner;
-import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
 import de.hsh.permcheck.internal.ConstructorVisitorWrapper;
-import de.hsh.permcheck.internal.EnterInsert;
-import de.hsh.permcheck.internal.ExitInsert;
+import de.hsh.permcheck.internal.ConstructorVisitorWrapperNeu;
 import de.hsh.permcheck.internal.Insert;
-import de.hsh.permcheck.internal.MyUntrustedClassAdvices;
 import de.hsh.permcheck.internal.Spec;
 import de.hsh.permcheck.internal.Specs;
 import net.bytebuddy.ByteBuddy;
@@ -40,14 +32,7 @@ import net.bytebuddy.description.type.TypeDescription;
 import net.bytebuddy.dynamic.ClassFileLocator;
 import net.bytebuddy.dynamic.DynamicType;
 import net.bytebuddy.dynamic.loading.ClassInjector;
-import net.bytebuddy.implementation.Implementation;
-import net.bytebuddy.implementation.MethodDelegation;
-import net.bytebuddy.implementation.SuperMethodCall;
-import net.bytebuddy.implementation.bind.MethodDelegationBinder;
-import net.bytebuddy.jar.asm.ClassReader;
-import net.bytebuddy.jar.asm.Opcodes;
-import net.bytebuddy.jar.asm.MethodVisitor;
-import net.bytebuddy.matcher.ElementMatcher;
+import net.bytebuddy.jar.asm.Type;
 import net.bytebuddy.matcher.ElementMatchers;
 import net.bytebuddy.pool.TypePool;
 import net.bytebuddy.utility.JavaModule;
@@ -94,6 +79,7 @@ public class Start {
         TypePool typePool = TypePool.Default.ofSystemLoader();
         TypeDescription myAdvicesTd = typePool.describe(internalPkgPrefix+"MyAdvices").resolve();
         TypeDescription myUntrustedClassAdvicesTd = typePool.describe(internalPkgPrefix+"MyUntrustedClassAdvices").resolve();
+        TypeDescription myUntrustedClassTypeInitializerAdvicesTd = typePool.describe(internalPkgPrefix+"MyUntrustedClassTypeInitializerAdvices").resolve();
         // TypeDescription myUntrustedClassConstructorInterceptorTd = typePool.describe(internalPkgPrefix+"MyUntrustedClassConstructorInterceptor").resolve();
         
 
@@ -123,6 +109,7 @@ public class Start {
         String[] classNames = {
                 "MyAdvices", 
                 "MyUntrustedClassAdvices", 
+                "MyUntrustedClassTypeInitializerAdvices",
                 "Hook", 
                 "Helper", 
                 "PermcheckException",
@@ -232,6 +219,8 @@ public class Start {
 
         List<String> untustedClassRegexes = Specs.getUntrustedClassRegexes();
 
+        
+
         AgentBuilder agentBuilderRedefine = new AgentBuilder.Default()
 // .with(new AgentBuilder.Listener.Filtering(
 //     new ElementMatcher<String>() {
@@ -269,6 +258,7 @@ public class Start {
         //             .getOnly();
 
         // First transform the untrusted classes:
+        ConstructorVisitorWrapperNeu cvwUntrustedClasses = new ConstructorVisitorWrapperNeu("de/hsh/permcheck/internal/MyUntrustedClassAdvices", false);
         for (String ucRegex : untustedClassRegexes) {
             Narrowable narrowable = agentBuilderRedefine.type( 
                 // Debugging:
@@ -290,6 +280,7 @@ public class Start {
 
             Transformer transformer = (builder, typeDescription, classLoader, module, protectionDomain) -> {
 System.out.println("  transform(..., typeDescription="+typeDescription);
+                builder = builder.visit(Advice.to(myUntrustedClassTypeInitializerAdvicesTd).on(ElementMatchers.isTypeInitializer()));
                 for (MethodDescription md : typeDescription.getDeclaredMethods()) {
 System.out.println("      md="+md);
                     // Constructors need a different approach than normal methods, because constructors 
@@ -298,7 +289,7 @@ System.out.println("      md="+md);
                     if (md.isConstructor()) {
                         builder = builder.visit(new AsmVisitorWrapper.ForDeclaredMethods()
                                                     .writerFlags(net.bytebuddy.jar.asm.ClassWriter.COMPUTE_FRAMES) 
-                                                    .constructor(ElementMatchers.is(md), new ConstructorVisitorWrapper()));
+                                                    .constructor(ElementMatchers.is(md), cvwUntrustedClasses));
                     } else {
                         builder = builder.visit(Advice.to(myUntrustedClassAdvicesTd).on(ElementMatchers.is(md)));
                     }
@@ -310,6 +301,7 @@ System.out.println("      md="+md);
         }
 
         // Now transform standard library classes:
+        ConstructorVisitorWrapperNeu cvwStdLibClasses = new ConstructorVisitorWrapperNeu("de/hsh/permcheck/internal/MyAdvices", true);
         
         for (Class<?> c : map.keySet()) {
             //System.out.println("c.getName(): " + c.getName());
@@ -331,7 +323,18 @@ System.out.println("      md="+md);
                         throw new Error("Unexpected Executable of type " + e.getClass());
                     }
 
-                    builder = builder.visit(Advice.to(myAdvicesTd).on(ElementMatchers.is(md)));
+                    // Constructors need a different approach than normal methods, because constructors 
+                    // cannot start with a try { ..., they must start with a super() or this().
+                    // For constructors we manually write byte code with a AsmVisitorWrapper:
+                    if (md.isConstructor()) {
+                        builder = builder.visit(new AsmVisitorWrapper.ForDeclaredMethods()
+                                                    .writerFlags(net.bytebuddy.jar.asm.ClassWriter.COMPUTE_FRAMES) 
+                                                    .constructor(ElementMatchers.is(md), cvwStdLibClasses));
+                        // builder = builder.visit(Advice.to(myAdvicesTd).on(ElementMatchers.is(md)));
+                    } else {
+                        builder = builder.visit(Advice.to(myAdvicesTd).on(ElementMatchers.is(md)));
+                    }
+
                 }
                 return builder;
             };
@@ -374,7 +377,7 @@ System.out.println("      md="+md);
         public void onTransformation(TypeDescription typeDescription, ClassLoader classLoader, 
                                         JavaModule module, boolean loaded, DynamicType dynamicType) {
             
-            String[] cn = { "subm.Submission", "java.io.File", "main.TestMain$1TestCaseSystemGetenvDenied"};
+            String[] cn = { "subm.Submission", "subm.SuperSubmission", "java.lang.System", "java.io.File", "java.util.zip.ZipFile", "java.io.RandomAccessFile", "java.io.FileInputStream", "main.TestMain$1TestCaseSystemGetenvDenied"};
             for (String c : cn) {
                 if (typeDescription.getName().equals(c)) {
                     // Hier liegt der transformierte Bytecode vor!

@@ -230,6 +230,8 @@ privilege.plain javafx.graphics/com.sun.javafx.font.PrismFontFactory#getFontReso
 privilege.plain javafx.graphics/com.sun.javafx.font.PrismFontFactory#getDefaultFontResource
 privilege.plain null/de.hsh.permcheck.internal.MyUntrustedClassAdvices#enter
 privilege.plain null/de.hsh.permcheck.internal.MyUntrustedClassAdvices#exit
+privilege.plain null/de.hsh.permcheck.internal.MyUntrustedClassAdvices#enterImpl
+privilege.plain null/de.hsh.permcheck.internal.MyUntrustedClassAdvices#exitImpl
 privilege.plain null/de.hsh.permcheck.internal.MyUntrustedClassAdvices#<clinit>
 privilege.plain null/de.hsh.permcheck.internal.MyUntrustedClassAdvices#enterConstructor
 privilege.plain null/de.hsh.permcheck.internal.MyUntrustedClassAdvices#exitConstructor

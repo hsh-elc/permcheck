@@ -11,10 +11,16 @@ import net.bytebuddy.pool.TypePool;
  * This class is loaded into the app class loader.
  */
 public class ConstructorVisitorWrapper implements AsmVisitorWrapper.ForDeclaredMethods.MethodVisitorWrapper {
+    private String classDelegate;
+    public ConstructorVisitorWrapper(String classDelegate) {
+        this.classDelegate = classDelegate;
+    }
     @Override
     public MethodVisitor wrap(TypeDescription instrumentedType, MethodDescription instrumentedMethod,
                                 MethodVisitor methodVisitor, Implementation.Context implementationContext,
                                 TypePool typePool, int writerFlags, int readerFlags) {
-        return new ConstructorTryCatchFinallyVisitor(methodVisitor);
+        String owner = instrumentedType.getName();
+        String ownerSuperClass = instrumentedType.getSuperClass().getTypeName();
+        return new ConstructorTryCatchFinallyVisitor(methodVisitor, classDelegate, owner, ownerSuperClass);
     }
 }

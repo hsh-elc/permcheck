@@ -1,5 +1,7 @@
 package de.hsh.permcheck.internal;
 
+import java.util.Objects;
+
 import net.bytebuddy.jar.asm.Label;
 import net.bytebuddy.jar.asm.MethodVisitor;
 import net.bytebuddy.jar.asm.Opcodes;
@@ -11,12 +13,19 @@ public class ConstructorTryCatchFinallyVisitor extends MethodVisitor {
     private final Label tryStart = new Label();
     private final Label tryEnd = new Label();
     private final Label catchStart = new Label();
+    private final Label exitLabel = new Label(); // Gemeinsamer Exit-Punkt
     
     private boolean superCalled = false;
 
+    private String classDelegate;
+    private String owner; // classname, e. g. java/io/FileInputStream
+    private String ownerSuperClass; // classname, e. g. java/io/InputStream
 
-    public ConstructorTryCatchFinallyVisitor(MethodVisitor methodVisitor) {
+    public ConstructorTryCatchFinallyVisitor(MethodVisitor methodVisitor, String classDelegate, String owner, String ownerSuperClass) {
         super(Opcodes.ASM9, methodVisitor);
+        this.classDelegate = classDelegate;
+        this.owner = (owner == null ? null : owner.replace(".", "/"));
+        this.ownerSuperClass = (ownerSuperClass == null ? null : ownerSuperClass.replace(".", "/"));
     }
 
     @Override
@@ -26,27 +35,43 @@ public class ConstructorTryCatchFinallyVisitor extends MethodVisitor {
 
         // Erkennen, wann der Super-Konstruktor aufgerufen wurde
         if (!superCalled && opcode == Opcodes.INVOKESPECIAL && name.equals("<init>")) {
-            superCalled = true;
 
-            // A. Zähler inkrementieren (Direkt nach dem Super-Aufruf)
-            super.visitMethodInsn(Opcodes.INVOKESTATIC, "de/hsh/permcheck/internal/MyUntrustedClassAdvices", "enterConstructor", "()V", false);
+            // The following prevents inserting Code at the wrong point after the new String(...), 
+            // if the constructor has something like this:
+            //    public Submission(short offset) {
+            //        this(Integer.parseInt(new String(""+offset)));
+            //        System.out.println("Submission short param constructor");
+            //    }
+            // Sadly, this also means, that we cannot include the full call of 
+            // this(Integer.parseInt(new String(""+offset)));
+            // in our try block.
+            // So this works only, if we instrument all constructors of the class.
+System.out.println("in visitMethodInsn("+opcode+", "+owner+", "+name+", "+descriptor+", "+isInterface+")");            
+System.out.println("    this.owner="+this.owner);            
+System.out.println("    this.ownerSuperClass="+this.ownerSuperClass);            
+            if (Objects.equals(owner, this.owner) || Objects.equals(owner, this.ownerSuperClass)) {
+                superCalled = true;
 
-            // B. Definition der Try-Catch-Grenzen im Bytecode registrieren
-            super.visitTryCatchBlock(tryStart, tryEnd, catchStart, null); // null bedeutet "catch Throwable"
+                // A. Zähler inkrementieren (Direkt nach dem Super-Aufruf)
+                super.visitMethodInsn(Opcodes.INVOKESTATIC, classDelegate, "enterConstructor", "()V", false);
 
-            // C. Start-Label für den Try-Block setzen
-            super.visitLabel(tryStart);
+                // B. Definition der Try-Catch-Grenzen im Bytecode registrieren
+                super.visitTryCatchBlock(tryStart, tryEnd, catchStart, null); // null bedeutet "catch Throwable"
+
+                // C. Start-Label für den Try-Block setzen
+                super.visitLabel(tryStart);
+            }
         }
     }
 
     @Override
     public void visitInsn(int opcode) {
-        // Jedes RETURN im originalen Code abfangen (Normales Verlassen des Konstruktors)
-        if (opcode == Opcodes.RETURN && superCalled) {
-            // Dekrementieren vor dem regulären Verlassen
-            decrementCounter();
+        if ((opcode == Opcodes.RETURN || opcode >= Opcodes.IRETURN && opcode <= Opcodes.RETURN) && superCalled) {
+            // Statt RETURN: Sprung zum Exit-Label
+            super.visitJumpInsn(Opcodes.GOTO, exitLabel);
+        } else {
+            super.visitInsn(opcode);
         }
-        super.visitInsn(opcode);
     }
 
     @Override
@@ -56,22 +81,23 @@ public class ConstructorTryCatchFinallyVisitor extends MethodVisitor {
             // Das Ende des Try-Blocks markieren
             super.visitLabel(tryEnd);
 
-            // Hier startet der Catch-Block, falls eine Exception fliegt
-            super.visitLabel(catchStart);
-            
-            // Exception liegt aktuell oben auf dem Stack. Wir sichern sie in einer lokalen Variable (Index 1)
-            super.visitVarInsn(Opcodes.ASTORE, 1);
-            // Dekrementieren im Exception-Fall
+            // --- Normaler Exit Pfad ---
+            super.visitLabel(exitLabel);
             decrementCounter();
-            // Exception wieder laden und werfen (rethrow), um das originale Verhalten beizubehalten
+            super.visitInsn(Opcodes.RETURN);
+
+            // --- Exception Pfad ---
+            super.visitLabel(catchStart);
+            super.visitVarInsn(Opcodes.ASTORE, 1);
+            decrementCounter();
             super.visitVarInsn(Opcodes.ALOAD, 1);
-            super.visitInsn(Opcodes.ATHROW);
+            super.visitInsn(Opcodes.ATHROW);            
         }
-        // Byte Buddy / ASM die Stack-Größen neu berechnen lassen (+4 Sicherheits-Puffer für unseren Code)
+        // Byte Buddy / ASM die Stack-Größen neu berechnen lassen (+2 Sicherheits-Puffer für unseren Code)
         super.visitMaxs(maxStack + 2, maxLocals + 2);
     }
 
     private void decrementCounter() {
-        super.visitMethodInsn(Opcodes.INVOKESTATIC, "de/hsh/permcheck/internal/MyUntrustedClassAdvices", "exitConstructor", "()V", false);
+        super.visitMethodInsn(Opcodes.INVOKESTATIC, classDelegate, "exitConstructor", "()V", false);
     }
 }

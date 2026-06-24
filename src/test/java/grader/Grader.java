@@ -40,7 +40,41 @@ public class Grader {
     public void testDoubleParamConstructor() throws NoSuchMethodException, IllegalAccessException, IllegalArgumentException, InvocationTargetException, SecurityException, InstantiationException {
         System.out.println("testDoubleParamConstructor");
         Constructor<?> doubleParamConstructor = clazz.getConstructor(double.class);        
-        Object submission = doubleParamConstructor.newInstance(1.0);
+        Object submission = doubleParamConstructor.newInstance((double)1.0);
+        test(submission);
+    }
+
+    @Test
+    public void testByteParamConstructor() throws NoSuchMethodException, IllegalAccessException, IllegalArgumentException, InvocationTargetException, SecurityException, InstantiationException {
+        System.out.println("testByteParamConstructor");
+        Constructor<?> byteParamConstructor = clazz.getConstructor(byte.class);        
+        Object submission = byteParamConstructor.newInstance((byte)1);
+        test(submission);
+    }
+
+    @Test
+    public void testShortParamConstructor() throws NoSuchMethodException, IllegalAccessException, IllegalArgumentException, InvocationTargetException, SecurityException, InstantiationException {
+        System.out.println("testShortParamConstructor");
+        Constructor<?> shortParamConstructor = clazz.getConstructor(short.class);        
+        Object submission = shortParamConstructor.newInstance((short)1);
+        test(submission);
+    }
+
+    @Test
+    public void testLongParamConstructor() throws NoSuchMethodException, IllegalAccessException, IllegalArgumentException, InvocationTargetException, SecurityException, InstantiationException {
+        System.out.println("testLongParamConstructor");
+        Constructor<?> longParamConstructor = clazz.getConstructor(long.class);        
+        Object submission = longParamConstructor.newInstance(1L);
+        test(submission);
+    }
+
+    
+
+    @Test
+    public void testStringParamConstructor() throws NoSuchMethodException, IllegalAccessException, IllegalArgumentException, InvocationTargetException, SecurityException, InstantiationException {
+        System.out.println("testStringParamConstructor");
+        Constructor<?> stringParamConstructor = clazz.getConstructor(String.class);        
+        Object submission = stringParamConstructor.newInstance("1");
         test(submission);
     }
 

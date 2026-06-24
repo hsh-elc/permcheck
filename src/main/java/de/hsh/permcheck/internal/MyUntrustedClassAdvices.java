@@ -1,8 +1,7 @@
 package de.hsh.permcheck.internal;
 
+import java.lang.reflect.Constructor;
 import java.lang.reflect.Executable;
-import java.util.Arrays;
-
 import net.bytebuddy.asm.Advice;
 import net.bytebuddy.implementation.bytecode.assign.Assigner.Typing;
 
@@ -24,7 +23,7 @@ public class MyUntrustedClassAdvices {
                       @Advice.This(optional = true) Object target,
                       @Advice.Origin Executable originExecutable,
                       @Advice.AllArguments Object[] ary) {
-        System.out.println("Enter "+origin+"... depth = "+  MyAdvices.UNTRUSTED_CALL_DEPTH.get().incrementAndGet());
+        enterImpl(origin);
     }
 
     @Advice.OnMethodExit(inline = false, onThrowable = Throwable.class)
@@ -35,23 +34,71 @@ public class MyUntrustedClassAdvices {
                       @Advice.Origin Executable originExecutable,
                       @Advice.AllArguments Object[] ary,
                       @Advice.Return(typing = Typing.DYNAMIC) Object result) {
-        System.out.println("Exit "+origin+"... depth = "+  MyAdvices.UNTRUSTED_CALL_DEPTH.get().decrementAndGet());
+        exitImpl(origin);
     }
 
 
     public static void enterConstructor() {
-        System.out.println("Enter constructor ... depth = " + MyAdvices.UNTRUSTED_CALL_DEPTH.get().incrementAndGet());
+        enterImpl("constructor");
     }
 
     public static void exitConstructor() {
-        System.out.println("Exit constructor ... depth = "+ MyAdvices.UNTRUSTED_CALL_DEPTH.get().decrementAndGet());
+        exitImpl("constructor");
     }
 
+    public static void enterConstructor(String className, Object[] args, String[] paramTypeNames) {
+MyAdvices.logConstructorCall("enterConstructor", className, args, paramTypeNames);
+       
+        Class<?> clazz = null;
+        Constructor<?> constructor = null;
+        try {
+            clazz = Class.forName(className);
+            constructor = MyAdvices.findConstructorByNames(clazz, paramTypeNames);
+        } catch (ClassNotFoundException | NoSuchMethodException e) {
+            throw new Error("Internal error in permcheck library", e);
+        }
+        enterImpl(constructor.toString());
+    }
+
+    public static void exitConstructor(String className, Object[] args, String[] paramTypeNames) {
+MyAdvices.logConstructorCall("exitConstructor", className, args, paramTypeNames);
+        Class<?> clazz = null;
+        Constructor<?> constructor = null;
+        try {
+            clazz = Class.forName(className);
+            constructor = MyAdvices.findConstructorByNames(clazz, paramTypeNames);
+        } catch (ClassNotFoundException | NoSuchMethodException e) {
+            throw new Error("Internal error in permcheck library", e);
+        }
+        exitImpl(constructor.toString());
+    }
+
+
+
+    static void enterImpl(String origin) {
+        boolean oldUntrustedCalledValue = MyAdvices.UNTRUSTED_CALLED.get().peek();
+        MyAdvices.UNTRUSTED_CALLED.get().push(true);
+        int d = MyAdvices.UNTRUSTED_CALL_DEPTH.get().incrementAndGet();
+        log(VerboseCategory.TRACE, "Enter "+origin+"... depth = " + d + ", untrusted_called: "+oldUntrustedCalledValue+" -> true");
+    }
+
+    static void exitImpl(String origin) {
+        int d = MyAdvices.UNTRUSTED_CALL_DEPTH.get().decrementAndGet();
+        boolean uc = MyAdvices.UNTRUSTED_CALLED.get().pop();
+        boolean oldUntrustedCalledValue = MyAdvices.UNTRUSTED_CALLED.get().peek();
+        log(VerboseCategory.TRACE, "Exit "+origin+"... depth = " + d + ", untrusted_called: "+uc+" -> "+oldUntrustedCalledValue);
+    }
+
+    private static void log(VerboseCategory vc, String msg) {
+        if (!Specs.include(vc)) return;
+        System.out.println(msg);
+    }
 
     // This mus be the last static initializer inside MyUntrustedClassAdvices:
     static {
         initialized = true;
     }
+
 
 
 

@@ -1,115 +1,215 @@
 package de.hsh.permcheck.internal;
 
-// import net.bytebuddy.jar.asm.Label;
-// import net.bytebuddy.jar.asm.MethodVisitor;
-// import net.bytebuddy.jar.asm.Opcodes;
+import java.util.Objects;
 
-// public class ConstructorTryCatchFinallyAdapter extends MethodVisitor   neu: extends LocalVariablesSorter {
-//     private final Label tryStart = new Label();
-//     private final Label tryEnd = new Label();
-//     private final Label catchStart = new Label();
+import net.bytebuddy.jar.asm.Label;
+import net.bytebuddy.jar.asm.MethodVisitor;
+import net.bytebuddy.jar.asm.Opcodes;
+import net.bytebuddy.jar.asm.Type;
+
+/**
+ * This class is loaded into the app class loader.
+ */
+public class ConstructorTryCatchFinallyVisitorNeu extends MethodVisitor {
+    private final Label tryStart = new Label();
+    private final Label tryEnd = new Label();
+    private final Label catchStart = new Label();
+    private final Label exitLabel = new Label(); // Gemeinsamer Exit-Punkt
     
-//     private boolean superCalled = false;
-//     neu private int booleanLocalVariableIndex = -1; // Hier speichern wir den dynamisch generierten Slot
-//     s. https://share.google/aimode/bTBuqO7Xg0XGoUYWg
+    private boolean superCalled = false;
 
+    private String classDelegate;
+    private String owner; // classname, e. g. java/io/FileInputStream
+    private String ownerSuperClass; // classname, e. g. java/io/InputStream
+    private String methodDescriptor; // parameters
 
-//     public ConstructorTryCatchFinallyAdapter(MethodVisitor methodVisitor) {
-//         super(Opcodes.ASM9, methodVisitor);
-//     }
+    /**
+     * 
+     * @param methodVisitor
+     * @param classDelegate
+     * @param owner
+     * @param ownerSuperClass
+     * @param methodDescriptor if this is null, then the classDelegate's enterConstructor() and exitConstructor() methods are
+     *     invoked without passing parameters.
+     */
+    public ConstructorTryCatchFinallyVisitorNeu(MethodVisitor methodVisitor, String classDelegate, String owner, String ownerSuperClass, String methodDescriptor) {
+        super(Opcodes.ASM9, methodVisitor);
+        this.classDelegate = classDelegate;
+        this.owner = (owner == null ? null : owner.replace(".", "/"));
+        this.ownerSuperClass = (ownerSuperClass == null ? null : ownerSuperClass.replace(".", "/"));
+        this.methodDescriptor = methodDescriptor;
+    }
 
-//     neu:
-//     public ConstructorTryCatchFinallyAdapter(int access, String descriptor, MethodVisitor methodVisitor) {
-//         // Super-Aufruf initialisiert den LocalVariablesSorter (benötigt ASM9)
-//         super(Opcodes.ASM9, access, descriptor, methodVisitor);
-//     }
+    @Override
+    public void visitMethodInsn(int opcode, String owner, String name, String descriptor, boolean isInterface) {
+        // Reiche den Aufruf zuerst an die originale Implementierung weiter
+        super.visitMethodInsn(opcode, owner, name, descriptor, isInterface);
 
+        // Erkennen, wann der Super-Konstruktor aufgerufen wurde
+        if (!superCalled && opcode == Opcodes.INVOKESPECIAL && name.equals("<init>")) {
 
-//     @Override
-//     public void visitMethodInsn(int opcode, String owner, String name, String descriptor, boolean isInterface) {
-//         // Reiche den Aufruf zuerst an die originale Implementierung weiter
-//         super.visitMethodInsn(opcode, owner, name, descriptor, isInterface);
+            // The following prevents inserting Code at the wrong point after the new File(...), 
+            // if the constructor has something like this:
+            //    public RandomAccessFile(String name, String mode) {
+            //        this(name != null ? new File(name) : null, mode);
+            //    } 
+            // Sadly, this also means, that we cannot include the full call of 
+            // this(name != null ? new File(name) : null, mode);
+            // in our try block.
+System.out.println("in visitMethodInsn("+opcode+", "+owner+", "+name+", "+descriptor+", "+isInterface+")");            
+System.out.println("    this.owner="+this.owner);            
+System.out.println("    this.ownerSuperClass="+this.ownerSuperClass);            
+            if (Objects.equals(owner, this.owner) || Objects.equals(owner, this.ownerSuperClass)) {
+                superCalled = true;
 
-//         // Erkennen, wann der Super-Konstruktor aufgerufen wurde
-//         if (!superCalled && opcode == Opcodes.INVOKESPECIAL && name.equals("<init>")) {
-//             superCalled = true;
+                // Aufruf enterConstructor
+                invokeEnter();
 
-//             // 1. Neuen Slot für eine int/boolean Variable reservieren
-//             neu this.booleanLocalVariableIndex = newLocal(net.bytebuddy.jar.asm.Type.BOOLEAN_TYPE);
+                // B. Definition der Try-Catch-Grenzen im Bytecode registrieren
+                super.visitTryCatchBlock(tryStart, tryEnd, catchStart, null); // null bedeutet "catch Throwable"
 
+                // C. Start-Label für den Try-Block setzen
+                super.visitLabel(tryStart);
+            }
+        }
+    }
 
+    @Override
+    public void visitInsn(int opcode) {
+        if ((opcode == Opcodes.RETURN || opcode >= Opcodes.IRETURN && opcode <= Opcodes.RETURN) && superCalled) {
+            // Statt RETURN: Sprung zum Exit-Label
+            super.visitJumpInsn(Opcodes.GOTO, exitLabel);
+        } else {
+            super.visitInsn(opcode);
+        }
+    }
 
-//             // A. Zähler inkrementieren (Direkt nach dem Super-Aufruf)
-//             super.visitMethodInsn(Opcodes.INVOKESTATIC, "de/hsh/permcheck/internal/MyUntrustedClassConstructorInterceptor", "enter", "()V", false);
+    @Override
+    public void visitMaxs(int maxStack, int maxLocals) {
+        // D. Am Ende der Methode den Catch-Block (Finally-Logik für Exceptions) anhängen
+        if (superCalled) {
+System.out.println("in visitMaxs("+maxStack+", "+maxLocals+")");            
+System.out.println("    this.owner="+this.owner);            
+            // Das Ende des Try-Blocks markieren
+            super.visitLabel(tryEnd);
 
-//             neu:
-//             super.visitMethodInsn(Opcodes.INVOKESTATIC, "util/Util", "enter", "()Z", false);
-//             // 3. Den boolean-Wert vom Stack in unsere neue lokale Variable speichern
-//             super.visitVarInsn(Opcodes.ISTORE, booleanLocalVariableIndex);
+            // --- Normaler Exit Pfad ---
+            super.visitLabel(exitLabel);
+            invokeExit();
+            super.visitInsn(Opcodes.RETURN);
 
+            // --- Exception Pfad ---
+            super.visitLabel(catchStart);
+            super.visitVarInsn(Opcodes.ASTORE, maxLocals + 1); // Exception zwischenspeichern
+            invokeExit();
+            super.visitVarInsn(Opcodes.ALOAD, maxLocals + 1);
+            super.visitInsn(Opcodes.ATHROW);            
+        }
+        // Byte Buddy / ASM die Stack-Größen neu berechnen lassen (+2 Sicherheits-Puffer für unseren Code)
+        super.visitMaxs(maxStack + 2, maxLocals + 2);
+    }
 
+    private void invokeEnter() {
+        if (methodDescriptor == null) {
+            super.visitMethodInsn(Opcodes.INVOKESTATIC, classDelegate, "enterConstructor", 
+                            "()V", false);
+        } else {
+            super.visitLdcInsn(this.owner.replace("/", "."));
+            pushParametersToArray(); 
+            pushParameterTypesToArray();
+            super.visitMethodInsn(Opcodes.INVOKESTATIC, classDelegate, "enterConstructor", 
+                            "(Ljava/lang/String;[Ljava/lang/Object;[Ljava/lang/String;)V", false);
+        }
+    }
 
-//             // B. Definition der Try-Catch-Grenzen im Bytecode registrieren
-//             super.visitTryCatchBlock(tryStart, tryEnd, catchStart, null); // null bedeutet "catch Throwable"
+    private void invokeExit() {
+        if (methodDescriptor == null) {
+            super.visitMethodInsn(Opcodes.INVOKESTATIC, classDelegate, "exitConstructor", 
+                            "()V", false);
+        } else {
+            super.visitLdcInsn(this.owner.replace("/", "."));
+            pushParametersToArray(); 
+            pushParameterTypesToArray();
+            super.visitMethodInsn(Opcodes.INVOKESTATIC, classDelegate, "exitConstructor", 
+                            "(Ljava/lang/String;[Ljava/lang/Object;[Ljava/lang/String;)V", false);
+        }
+    }
 
-//             // C. Start-Label für den Try-Block setzen
-//             super.visitLabel(tryStart);
-//         }
-//     }
+    private void pushParametersToArray() {
+        // Analysieren des Descriptors, um die Anzahl der Parameter zu bestimmen
+        Type[] argumentTypes = Type.getArgumentTypes(methodDescriptor);
+        int paramCount = argumentTypes.length;
 
-//     @Override
-//     public void visitInsn(int opcode) {
-//         // Jedes RETURN im originalen Code abfangen (Normales Verlassen des Konstruktors)
-//         if (opcode == Opcodes.RETURN && superCalled) {
-//             // Dekrementieren vor dem regulären Verlassen
-//             decrementCounter();
-//         }
-//         super.visitInsn(opcode);
-//     }
+        // 1. Array erzeugen
+        super.visitIntInsn(Opcodes.BIPUSH, paramCount);
+        super.visitTypeInsn(Opcodes.ANEWARRAY, "java/lang/Object");
 
-//     @Override
-//     public void visitMaxs(int maxStack, int maxLocals) {
-//         // D. Am Ende der Methode den Catch-Block (Finally-Logik für Exceptions) anhängen
-//         if (superCalled) {
-//             // Das Ende des Try-Blocks markieren
-//             super.visitLabel(tryEnd);
-
-//             // Hier startet der Catch-Block, falls eine Exception fliegt
-//             super.visitLabel(catchStart);
+        // 2. Parameter in das Array laden
+        int localIndex = 1; // 0 ist 'this'
+        for (int i = 0; i < paramCount; i++) {
+            super.visitInsn(Opcodes.DUP); // Array-Referenz kopieren
+            super.visitIntInsn(Opcodes.BIPUSH, i); // Index
             
-//             // Exception liegt aktuell oben auf dem Stack. Wir sichern sie in einer lokalen Variable (Index 1)
-//             super.visitVarInsn(Opcodes.ASTORE, 1);
-//             // Dekrementieren im Exception-Fall
-//             decrementCounter();
-//             // Exception wieder laden und werfen (rethrow), um das originale Verhalten beizubehalten
-//             super.visitVarInsn(Opcodes.ALOAD, 1);
-//             super.visitInsn(Opcodes.ATHROW);
+            // Parameter laden (Boxen falls Primitiv)
+            loadAndBox(localIndex, argumentTypes[i]);
+            
+            super.visitInsn(Opcodes.AASTORE); // Speichern in Array
+            localIndex += argumentTypes[i].getSize();
+        }
+    }
 
-//             Neu für die beiden vorherigen Zeilen:
-//             // Exception liegt aktuell oben auf dem Stack. Wir sichern sie temporär auf dem Stack 
-//             // oder in einer lokalen Variable, um Platz für unsere exit-Logik zu machen.
-//             // LocalVariablesSorter findet auch hierfür sicher einen freien Slot.
-//             int exceptionSlot = newLocal(net.bytebuddy.jar.asm.Type.getType(Throwable.class));
-//             super.visitVarInsn(Opcodes.ASTORE, exceptionSlot);
-//             // util.Util.exit(boolean) aufrufen im Exception-Fall
-//             decrementCounter();
-//             // Exception wieder laden und werfen (rethrow), um das originale Verhalten beizubehalten
-//             super.visitVarInsn(Opcodes.ALOAD, exceptionSlot);
-//             super.visitInsn(Opcodes.ATHROW);
+    private void loadAndBox(int localIndex, Type type) {
+        // 1. Wert auf den Stack laden
+        super.visitVarInsn(type.getOpcode(Opcodes.ILOAD), localIndex);
 
-//         }
-//         // Byte Buddy / ASM die Stack-Größen neu berechnen lassen (+4 Sicherheits-Puffer für unseren Code)
-//         super.visitMaxs(maxStack + 2, maxLocals + 2);
-//     }
+        // 2. Falls primitiv, boxing durchführen
+        switch (type.getSort()) {
+            case Type.BOOLEAN:
+                super.visitMethodInsn(Opcodes.INVOKESTATIC, "java/lang/Boolean", "valueOf", "(Z)Ljava/lang/Boolean;", false);
+                break;
+            case Type.CHAR:
+                super.visitMethodInsn(Opcodes.INVOKESTATIC, "java/lang/Character", "valueOf", "(C)Ljava/lang/Character;", false);
+                break;
+            case Type.BYTE:
+                super.visitMethodInsn(Opcodes.INVOKESTATIC, "java/lang/Byte", "valueOf", "(B)Ljava/lang/Byte;", false);
+                break;
+            case Type.SHORT:
+                super.visitMethodInsn(Opcodes.INVOKESTATIC, "java/lang/Short", "valueOf", "(S)Ljava/lang/Short;", false);
+                break;
+            case Type.INT:
+                super.visitMethodInsn(Opcodes.INVOKESTATIC, "java/lang/Integer", "valueOf", "(I)Ljava/lang/Integer;", false);
+                break;
+            case Type.FLOAT:
+                super.visitMethodInsn(Opcodes.INVOKESTATIC, "java/lang/Float", "valueOf", "(F)Ljava/lang/Float;", false);
+                break;
+            case Type.LONG:
+                super.visitMethodInsn(Opcodes.INVOKESTATIC, "java/lang/Long", "valueOf", "(J)Ljava/lang/Long;", false);
+                break;
+            case Type.DOUBLE:
+                super.visitMethodInsn(Opcodes.INVOKESTATIC, "java/lang/Double", "valueOf", "(D)Ljava/lang/Double;", false);
+                break;
+            case Type.OBJECT:
+            case Type.ARRAY:
+                // Keine Aktion nötig, ist bereits ein Objekt
+                break;
+            default:
+                throw new IllegalArgumentException("Unbekannter Typ: " + type);
+        }
+    }
 
-//     private void decrementCounter() {
-//         super.visitMethodInsn(Opcodes.INVOKESTATIC, "de/hsh/permcheck/internal/MyUntrustedClassConstructorInterceptor", "exit", "()V", false);
-
-//         neu:
-//         // Gelagerten boolean-Wert (0 oder 1 im Bytecode) aus der lokalen Variable auf den Stack laden
-//         super.visitVarInsn(Opcodes.ILOAD, booleanLocalVariableIndex);
+    private void pushParameterTypesToArray() {
+        Type[] argumentTypes = Type.getArgumentTypes(methodDescriptor);
         
-//         // util.Util.exit(boolean) aufrufen. Deskriptor "(Z)V" bedeutet: Nimmt boolean (Z), gibt void (V) zurück
-//         super.visitMethodInsn(Opcodes.INVOKESTATIC, "util/Util", "exit", "(Z)V", false);
-//     }
-// }
+        // 1. Array für die Typ-Namen erstellen
+        super.visitIntInsn(Opcodes.BIPUSH, argumentTypes.length);
+        super.visitTypeInsn(Opcodes.ANEWARRAY, "java/lang/String");
+
+        // 2. Namen der Typen einfügen
+        for (int i = 0; i < argumentTypes.length; i++) {
+            super.visitInsn(Opcodes.DUP);
+            super.visitIntInsn(Opcodes.BIPUSH, i);
+            super.visitLdcInsn(argumentTypes[i].getClassName()); // z.B. "int", "java.lang.String"
+            super.visitInsn(Opcodes.AASTORE);
+        }
+    }
+}
