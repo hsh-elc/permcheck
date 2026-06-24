@@ -113,6 +113,13 @@ permit.property java.vm.name | read
 permit.property jdk.lang.Process.allowAmbiguousCommands | read
 permit.property jdk.nio.file.WatchService.maxEventsPerPoll | read
 
+# These ones are needed for network access classes static initializers:
+permit.property jdk.net.usePlainDatagramSocketImpl | read
+permit.property java.net.preferIPv6Addresses | read
+permit.property sun.net.useExclusiveBind | read
+permit.property jdk.net.useFastTcpLoopback | read
+permit.property sun.net.maxDatagramSockets | read
+
 # Further permissions, that could be granted to student submissions,
 # but this reveals already information about the grading system:
 permit.property java.io.tmpdir | read
@@ -199,6 +206,11 @@ privilege.plain java.base/java.lang.ProcessImpl#launchMechanism
 privilege.plain java.base/java.lang.invoke.InnerClassLambdaMetafactory#buildCallSite                
 privilege.plain java.base/java.lang.StackWalker#<clinit>
 privilege.plain java.base/java.lang.System#getLogger
+privilege.plain java.base/java.net.InetAddress#<clinit>
+privilege.plain java.base/sun.net.InetAddressCachePolicy#<clinit>
+privilege.plain java.base/java.util.concurrent.atomic.Striped64#<clinit>
+privilege.plain java.base/sun.nio.ch.DatagramSocketAdaptor$DatagramPackets#<clinit>
+privilege.plain java.base/sun.nio.ch.DatagramSocketAdaptor$DatagramSockets#<clinit>
 privilege.plain java.base/java.io.ObjectStreamClass#<init>
 privilege.plain java.base/java.util.EnumSet#noneOf
 privilege.plain java.base/java.util.Scanner#<clinit>
@@ -228,6 +240,7 @@ privilege.plain javafx.graphics/javafx.stage.Window#show
 privilege.plain javafx.graphics/com.sun.javafx.font.PrismFontFactory#getFontFactory
 privilege.plain javafx.graphics/com.sun.javafx.font.PrismFontFactory#getFontResource
 privilege.plain javafx.graphics/com.sun.javafx.font.PrismFontFactory#getDefaultFontResource
+
 
 # We assign privileges to many test factory methods, since these methods need
 # to prepare files and classes before instantiating TestCase objects.
