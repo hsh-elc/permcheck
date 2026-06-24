@@ -4,11 +4,7 @@ import java.lang.reflect.Constructor;
 import java.lang.reflect.Executable;
 import java.lang.reflect.Method;
 import java.lang.reflect.Parameter;
-import java.util.ArrayDeque;
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Formatter;
-import java.util.concurrent.atomic.AtomicInteger;
 
 import net.bytebuddy.asm.Advice;
 import net.bytebuddy.implementation.bytecode.assign.Assigner.Typing;
@@ -32,10 +28,6 @@ public class MyAdvices {
     private static ThreadLocal<Boolean> INSIDE = ThreadLocal.withInitial(() -> Boolean.FALSE);
 
     private static ThreadLocal<String[]> CALLSTACK = null;
-
-
-    static ThreadLocal<AtomicInteger> UNTRUSTED_CALL_DEPTH = ThreadLocal.withInitial(() -> new AtomicInteger());
-    static ThreadLocal<ArrayDeque<Boolean>> UNTRUSTED_CALLED = ThreadLocal.withInitial(() -> { ArrayDeque<Boolean> s = new ArrayDeque<>(); s.push(false); return s; });
 
 
     private static String convert(Executable e) {
@@ -62,7 +54,7 @@ public class MyAdvices {
         return sb.toString();
     }
 
-    private static boolean tryToGetInside() {
+    static boolean tryToGetInside() {
         if (INSIDE == null) {
             INSIDE = new ThreadLocal<>();
             INSIDE = ThreadLocal.withInitial(() -> Boolean.FALSE);
@@ -72,7 +64,7 @@ public class MyAdvices {
         return true;
     }
 
-    private static void leaveInside() {
+    static void leaveInside() {
         if (INSIDE == null) return;
         INSIDE.set(Boolean.FALSE);
     }
@@ -116,7 +108,7 @@ public class MyAdvices {
     }
 
     @Advice.OnMethodEnter(inline = false)
-    public static void enter(@Advice.Origin String origin,
+    public static void onEnter(@Advice.Origin String origin,
                       @Advice.Origin("#t #m") String detaildOrigin,
                       @Advice.Origin Class<?> originClazz,
                       @Advice.This(optional = true) Object target,
@@ -126,14 +118,14 @@ public class MyAdvices {
         if (!Specs.isActive()) return;
         if (!tryToGetInside()) return; // cycle
         try {
-            enterImpl(originClazz, target, originExecutable, ary);
+            enterImpl(MyAdvices.class, originClazz, target, originExecutable, ary);
         } finally {
             leaveInside();
         }
     }
 
     @Advice.OnMethodExit(inline = false, onThrowable = Throwable.class)
-    public static void exit(@Advice.Origin String origin,
+    public static void onMethodExit(@Advice.Origin String origin,
                       @Advice.Origin("#t #m") String detaildOrigin,
                       @Advice.Origin Class<?> originClazz,
                       @Advice.This(optional = true) Object target,
@@ -144,90 +136,13 @@ public class MyAdvices {
         if (!Specs.isActive()) return;
         if (!tryToGetInside()) return; // cycle
         try {
-            exitImpl(originClazz, target, originExecutable, ary, result);
+            exitImpl(MyAdvices.class, originClazz, target, originExecutable, ary, result);
         } finally {
             leaveInside();
         }
     }
 
-    public static void enterConstructor(String className, Object[] args, String[] paramTypeNames) {
-logConstructorCall("enterConstructor", className, args, paramTypeNames);
-       
-        if (!initialized) return;
-        if (!Specs.isActive()) return;
-        if (!tryToGetInside()) return; // cycle
-        try {
-            Class<?> clazz = null;
-            Constructor<?> constructor = null;
-            try {
-                clazz = Class.forName(className);
-                constructor = findConstructorByNames(clazz, paramTypeNames);
-            } catch (ClassNotFoundException | NoSuchMethodException e) {
-                throw new Error("Internal error in permcheck library", e);
-            }
-            enterImpl(clazz, null, constructor, args);
-        } finally {
-            leaveInside();
-        }
-    }
-
-    public static void exitConstructor(String className, Object[] args, String[] paramTypeNames) {
-logConstructorCall("exitConstructor", className, args, paramTypeNames);
-        if (!initialized) return;
-        if (!Specs.isActive()) return;
-        if (!tryToGetInside()) return; // cycle
-        try {
-            Class<?> clazz = null;
-            Constructor<?> constructor = null;
-            try {
-                clazz = Class.forName(className);
-                constructor = findConstructorByNames(clazz, paramTypeNames);
-            } catch (ClassNotFoundException | NoSuchMethodException e) {
-                throw new Error("Internal error in permcheck library", e);
-            }
-            exitImpl(clazz, null, constructor, args, null);
-        } finally {
-            leaveInside();
-        }
-    }
-
-    static void logConstructorCall(String enterOrExit, String className, Object[] args, String[] paramTypeNames) {
-System.out.print(enterOrExit);
-System.out.print(" className=");
-System.out.println(className);
-for (int i=0; i<args.length; i++) {
-    System.out.print("  arg[");
-    System.out.print(i);
-    System.out.print("] of type ");
-    System.out.print(paramTypeNames[i]);
-    System.out.print(" is ");
-    System.out.println(String.valueOf(args[i]));
-}
-System.out.println();
-
-    }
-
-    static Constructor<?> findConstructorByNames(Class<?> clazz, String[] paramTypeNames) throws NoSuchMethodException {
-        for (Constructor<?> c : clazz.getDeclaredConstructors()) {
-            Class<?>[] types = c.getParameterTypes();
-            if (types.length == paramTypeNames.length) {
-                boolean match = true;
-                for (int i = 0; i < types.length; i++) {
-                    if (!types[i].getName().equals(paramTypeNames[i])) {
-                        // Achtung: Hier ggf. für Primitiv-Typen prüfen
-                        match = false;
-                        break;
-                    }
-                }
-                if (match) return c;
-            }
-        }
-        throw new NoSuchMethodException("Kein passender Konstruktor für " + clazz.getName() + " mit Args: " + Arrays.toString(paramTypeNames));
-    }
-
-    
-
-    private static void enterImpl(Class<?> originClazz, Object target, Executable originExecutable, Object[] ary) {
+    private static void enterImpl(Class<?> myAdvicesClass, Class<?> originClazz, Object target, Executable originExecutable, Object[] ary) {
         ArrayList<Insert> inserts = Specs.getInserts(originExecutable);
         if (inserts == null) return;
     
@@ -251,7 +166,7 @@ System.out.println();
             Hook hook = new Hook(originClazz, target, originExecutable, ary);
             log(VerboseCategory.TRACE, "[PERMCHECK] onMethodEnter: ", hook);
             
-            boolean[] stackInfo = isCalledFromSubmission(MyAdvices.class);
+            boolean[] stackInfo = isCalledFromSubmission(myAdvicesClass);
             if (!stackInfo[1]) {
                 // not untrusted
                 return; 
@@ -267,7 +182,7 @@ System.out.println();
         }
     }
 
-    private static void exitImpl(Class<?> originClazz, Object target, Executable originExecutable, Object[] ary, Object result) {
+    static void exitImpl(Class<?> myAdvicesClass, Class<?> originClazz, Object target, Executable originExecutable, Object[] ary, Object result) {
         ArrayList<Insert> inserts = Specs.getInserts(originExecutable);
         if (inserts == null) return;
 
@@ -286,7 +201,7 @@ System.out.println();
             Hook hook = new Hook(originClazz, target, originExecutable, ary);
             log(VerboseCategory.TRACE, "[PERMCHECK] onMethodExit: ", hook);
 
-            boolean[] stackInfo = isCalledFromSubmission(MyAdvices.class);
+            boolean[] stackInfo = isCalledFromSubmission(myAdvicesClass);
             if (!stackInfo[1]) {
                 // not untrusted
                 return; 
@@ -305,39 +220,22 @@ System.out.println();
 
     /**
      * 
-     * @param caller
+     * @param myAdvicesClass
      * @return two booleans signaling, which one of the following two events occured first when climbing
      *         up the call stack: (isPrivileged, isUntrustedClass). If both booleans are false, then none of
      *         the events occurred.
      */
-    private static boolean[] isCalledFromSubmission(Class<? extends MyAdvices> caller) {
-boolean assertDepth = false;        
-int depth = UNTRUSTED_CALL_DEPTH.get().get();
-
+    private static boolean[] isCalledFromSubmission(Class<?> myAdvicesClass) {
         boolean isUntrustedClass = false;
         boolean isPrivileged = false;
-if (depth == 0) return new boolean[] { isPrivileged, isUntrustedClass };
         StackTraceElement[] trace = Thread.currentThread().getStackTrace();
-//System.out.println("isCalledFromSubmission ...");
-// for (StackTraceElement e : trace) System.out.println("    "+e);
         boolean leftMyAdvices = false;
         outerloop:
         for (int i = 1; i < trace.length; i++) {
             StackTraceElement e= trace[i];
-            if (caller.getName().equals(e.getClassName())) {
+            if (myAdvicesClass.getName().equals(e.getClassName())) {
                 if (leftMyAdvices) {
-                    // reentered My...Advice. This is a cycle.
-
-if (assertDepth && MyUntrustedClassAdvices.initialized && MyUntrustedClassTypeInitializerAdvices.initialized) {
-    if (depth == 0 && isUntrustedClass || depth != 0 && !(isUntrustedClass || isPrivileged)) {
-        StringBuilder sb = new StringBuilder();
-        try (Formatter f = new Formatter(sb)) {
-            f.format("depth = %d, isUntrustedClass=%b, isPrivileged=%b%n", depth, isUntrustedClass, isPrivileged);
-            for (StackTraceElement el : trace) f.format("    %s%n", el.toString());
-            throw new Error("(1) unexpected depth in MyAdvices.isCalledFromSubmission\n"+f.toString());
-        }
-    }
-}
+                    // reentered MyAdvice... class. This is a cycle.
                     break outerloop;
                 }
             } else {
@@ -347,31 +245,11 @@ if (assertDepth && MyUntrustedClassAdvices.initialized && MyUntrustedClassTypeIn
             String mcm = e.getModuleName() + "/" + e.getClassName() + "#" + e.getMethodName();
             if (Specs.isPrivileged(mcm)) {
                 isPrivileged = true;
-if (assertDepth && MyUntrustedClassAdvices.initialized && MyUntrustedClassTypeInitializerAdvices.initialized) {
-    if (depth == 0 && isUntrustedClass || depth != 0 && !(isUntrustedClass || isPrivileged)) {
-        StringBuilder sb = new StringBuilder();
-        try (Formatter f = new Formatter(sb)) {
-            f.format("depth = %d, isUntrustedClass=%b, isPrivileged=%b, mcm=%s%n", depth, isUntrustedClass, isPrivileged, mcm);
-            for (StackTraceElement el : trace) f.format("    %s%n", el.toString());
-            throw new Error("(2) unexpected depth in MyAdvices.isCalledFromSubmission\n"+f.toString());
-        }
-    }
-}
                 break outerloop;
             }
             
             if (Specs.isUntrustedClass(e.getClassName())) {
                 isUntrustedClass = true;
-if (assertDepth && MyUntrustedClassAdvices.initialized && MyUntrustedClassTypeInitializerAdvices.initialized) {
-    if (depth == 0 && isUntrustedClass || depth != 0 && !(isUntrustedClass || isPrivileged)) {
-        StringBuilder sb = new StringBuilder();
-        try (Formatter f = new Formatter(sb)) {
-            f.format("depth = %d, isUntrustedClass=%b, isPrivileged=%b%n", depth, isUntrustedClass, isPrivileged);
-            for (StackTraceElement el : trace) f.format("    %s%n", el.toString());
-            throw new Error("(3) unexpected depth in MyAdvices.isCalledFromSubmission\n"+f.toString());
-        }
-    }
-}
                 break outerloop;
             }
         }
@@ -386,7 +264,7 @@ if (assertDepth && MyUntrustedClassAdvices.initialized && MyUntrustedClassTypeIn
         System.out.println(msg.toString());
     }
 
-    // This mus be the last static initializer inside MyAdvices:
+    // This must be the last static initializer inside MyAdvices:
     static {
         MyAdvices.initialized = true;
     }

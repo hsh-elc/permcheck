@@ -1,9 +1,8 @@
 package subm;
 
 import java.util.concurrent.Callable;
-import java.util.stream.IntStream;
 
-public class Submission extends SuperSubmission {
+public class Submission extends SuperSubmission  {
     private static final double CLASS_OFFSET;
     private double offset;
     private static int staticVar;
@@ -34,7 +33,11 @@ public class Submission extends SuperSubmission {
         init(offset);
     }
     public Submission(byte offset) {
-        this(System.getProperty("user.dir").length()/1000000+offset);
+        this(
+            // attack:
+            //System.getProperty("user.dir").length()/1000000+offset
+            (double)offset
+        );
         System.out.println("Submission byte param constructor");
     }
     public Submission(short offset) {

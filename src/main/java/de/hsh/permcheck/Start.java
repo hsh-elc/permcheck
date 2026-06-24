@@ -14,8 +14,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
 
-import de.hsh.permcheck.internal.ConstructorVisitorWrapper;
-import de.hsh.permcheck.internal.ConstructorVisitorWrapperNeu;
 import de.hsh.permcheck.internal.Insert;
 import de.hsh.permcheck.internal.Spec;
 import de.hsh.permcheck.internal.Specs;
@@ -26,13 +24,11 @@ import net.bytebuddy.agent.builder.AgentBuilder.Identified.Extendable;
 import net.bytebuddy.agent.builder.AgentBuilder.Identified.Narrowable;
 import net.bytebuddy.agent.builder.AgentBuilder.Transformer;
 import net.bytebuddy.asm.Advice;
-import net.bytebuddy.asm.AsmVisitorWrapper;
 import net.bytebuddy.description.method.MethodDescription;
 import net.bytebuddy.description.type.TypeDescription;
 import net.bytebuddy.dynamic.ClassFileLocator;
 import net.bytebuddy.dynamic.DynamicType;
 import net.bytebuddy.dynamic.loading.ClassInjector;
-import net.bytebuddy.jar.asm.Type;
 import net.bytebuddy.matcher.ElementMatchers;
 import net.bytebuddy.pool.TypePool;
 import net.bytebuddy.utility.JavaModule;
@@ -78,9 +74,7 @@ public class Start {
         // Quelle: https://stackoverflow.com/questions/69267044/insert-a-custom-class-into-bootstrap-classloader-into-java-base-module
         TypePool typePool = TypePool.Default.ofSystemLoader();
         TypeDescription myAdvicesTd = typePool.describe(internalPkgPrefix+"MyAdvices").resolve();
-        TypeDescription myUntrustedClassAdvicesTd = typePool.describe(internalPkgPrefix+"MyUntrustedClassAdvices").resolve();
-        TypeDescription myUntrustedClassTypeInitializerAdvicesTd = typePool.describe(internalPkgPrefix+"MyUntrustedClassTypeInitializerAdvices").resolve();
-        // TypeDescription myUntrustedClassConstructorInterceptorTd = typePool.describe(internalPkgPrefix+"MyUntrustedClassConstructorInterceptor").resolve();
+        TypeDescription myAdvicesConstructorTd = typePool.describe(internalPkgPrefix+"MyAdvicesConstructor").resolve();
         
 
         File temp;
@@ -108,8 +102,7 @@ public class Start {
 
         String[] classNames = {
                 "MyAdvices", 
-                "MyUntrustedClassAdvices", 
-                "MyUntrustedClassTypeInitializerAdvices",
+                "MyAdvicesConstructor", 
                 "Hook", 
                 "Helper", 
                 "PermcheckException",
@@ -217,9 +210,6 @@ public class Start {
             }
         }
 
-        List<String> untustedClassRegexes = Specs.getUntrustedClassRegexes();
-
-        
 
         AgentBuilder agentBuilderRedefine = new AgentBuilder.Default()
 // .with(new AgentBuilder.Listener.Filtering(
@@ -252,57 +242,7 @@ public class Start {
             .with(new AgentBuilder.Listener.WithTransformationsOnly(new ClassFileWriter()))
             .ignore(ElementMatchers.none());
 
-        // MethodDescription myUntrustedClassConstructorInterceptorMd =
-        //     myUntrustedClassConstructorInterceptorTd.getDeclaredMethods()
-        //             .filter(ElementMatchers.named("intercept"))
-        //             .getOnly();
-
-        // First transform the untrusted classes:
-        ConstructorVisitorWrapperNeu cvwUntrustedClasses = new ConstructorVisitorWrapperNeu("de/hsh/permcheck/internal/MyUntrustedClassAdvices", false);
-        for (String ucRegex : untustedClassRegexes) {
-            Narrowable narrowable = agentBuilderRedefine.type( 
-                // Debugging:
-                // new ElementMatcher<TypeDescription>() {
-                //     @Override
-                //     public boolean matches(TypeDescription td) {
-                //         if (td.getName().startsWith("geom") || td.getName().startsWith("de.hsh")) {
-                //             System.out.print("Matching td="+td.getName()+" against "+ucRegex+" ... ");
-                //         }
-                //         boolean result = Pattern.compile(ucRegex).matcher(td.getName()).matches();
-                //         if (td.getName().startsWith("geom") || td.getName().startsWith("de.hsh")) {
-                //             System.out.println(result);
-                //         }
-                //         return result;
-                //     }
-                // }
-                ElementMatchers.nameMatches(ucRegex)
-            );
-
-            Transformer transformer = (builder, typeDescription, classLoader, module, protectionDomain) -> {
-System.out.println("  transform(..., typeDescription="+typeDescription);
-                builder = builder.visit(Advice.to(myUntrustedClassTypeInitializerAdvicesTd).on(ElementMatchers.isTypeInitializer()));
-                for (MethodDescription md : typeDescription.getDeclaredMethods()) {
-System.out.println("      md="+md);
-                    // Constructors need a different approach than normal methods, because constructors 
-                    // cannot start with a try { ..., they must start with a super() or this().
-                    // For constructors we manually write byte code with a AsmVisitorWrapper:
-                    if (md.isConstructor()) {
-                        builder = builder.visit(new AsmVisitorWrapper.ForDeclaredMethods()
-                                                    .writerFlags(net.bytebuddy.jar.asm.ClassWriter.COMPUTE_FRAMES) 
-                                                    .constructor(ElementMatchers.is(md), cvwUntrustedClasses));
-                    } else {
-                        builder = builder.visit(Advice.to(myUntrustedClassAdvicesTd).on(ElementMatchers.is(md)));
-                    }
-                }
-                return builder;
-            };
-            
-            agentBuilderRedefine = narrowable.transform(transformer).asTerminalTransformation();
-        }
-
         // Now transform standard library classes:
-        ConstructorVisitorWrapperNeu cvwStdLibClasses = new ConstructorVisitorWrapperNeu("de/hsh/permcheck/internal/MyAdvices", true);
-        
         for (Class<?> c : map.keySet()) {
             //System.out.println("c.getName(): " + c.getName());
             Narrowable narrowable = agentBuilderRedefine.type( 
@@ -323,18 +263,11 @@ System.out.println("      md="+md);
                         throw new Error("Unexpected Executable of type " + e.getClass());
                     }
 
-                    // Constructors need a different approach than normal methods, because constructors 
-                    // cannot start with a try { ..., they must start with a super() or this().
-                    // For constructors we manually write byte code with a AsmVisitorWrapper:
                     if (md.isConstructor()) {
-                        builder = builder.visit(new AsmVisitorWrapper.ForDeclaredMethods()
-                                                    .writerFlags(net.bytebuddy.jar.asm.ClassWriter.COMPUTE_FRAMES) 
-                                                    .constructor(ElementMatchers.is(md), cvwStdLibClasses));
-                        // builder = builder.visit(Advice.to(myAdvicesTd).on(ElementMatchers.is(md)));
+                        builder = builder.visit(Advice.to(myAdvicesTd, myAdvicesConstructorTd).on(ElementMatchers.is(md)));
                     } else {
                         builder = builder.visit(Advice.to(myAdvicesTd).on(ElementMatchers.is(md)));
                     }
-
                 }
                 return builder;
             };
