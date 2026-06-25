@@ -67,4 +67,25 @@ public class Helper {
         return frame.getDeclaringClass();
     }
 
+    static String replaceSystemProperties(String str) {
+        String origStr = str;
+        int i0, i1;
+        while ((i0 = str.indexOf("${{")) >= 0) {
+            i1 = str.indexOf("}}", i0);
+            if (i1 < i0) {
+                throw new IllegalArgumentException("Illegal property placeholder in spec '"+origStr+"'");
+            }
+            String propKey = str.substring(i0+3, i1);
+            if (propKey.isBlank()) {
+                throw new IllegalArgumentException("Illegal property placeholder in spec '"+origStr+"'");
+            }
+            String propVal = System.getProperty(propKey);
+            if (propVal == null) {
+                throw new IllegalArgumentException("Unresolved property placeholder '"+propKey+"' in spec '"+origStr+"'");
+            }
+            str = str.substring(0, i0) + propVal + str.substring(i1+2);
+        }
+        return str;
+    }
+
 }

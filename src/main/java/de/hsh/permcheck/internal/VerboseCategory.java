@@ -1,6 +1,6 @@
 package de.hsh.permcheck.internal;
 
-enum VerboseCategory {
+public enum VerboseCategory {
     INSTALL(0x1),
     TRANSFORM(0x2),
     PERMIT(0x4),

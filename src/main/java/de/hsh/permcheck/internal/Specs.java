@@ -5,6 +5,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.regex.Pattern;
 
 public class Specs {
@@ -17,6 +18,8 @@ public class Specs {
      * Contains either compiled Patterns or Strings:
      */
     private LinkedHashSet<Object> untrustedClasses;
+
+    private LinkedHashMap<String, String> transformedClassesToBeWrittenToDirectory;
 
     private String password;
     private boolean isActive;
@@ -47,6 +50,26 @@ public class Specs {
         }
     }
 
+    private void specDebugWriteTransformedClass(String key, String val) {
+        String[] parts = val.split("\\|");
+        if (parts.length != 2) {
+            throw new IllegalArgumentException("Illegal "+key+" spec '"+val+"'. Should be separated into two fields with | as field separator.");
+        }
+        String className = parts[0].trim();
+        if (className.isEmpty()) {
+            throw new IllegalArgumentException("Illegal "+key+" spec '"+val+"'. first part CLASSNAME is missing.");
+        }
+        String directory = parts[1].trim();
+        if (directory.isEmpty()) {
+            throw new IllegalArgumentException("Illegal "+key+" spec '"+val+"'. second part DIRECTORY is missing.");
+        }
+        if (transformedClassesToBeWrittenToDirectory.containsKey(className)) {
+            throw new IllegalArgumentException("Illegal "+key+" spec '"+val+"'. first part CLASSNAME is duplicated.");
+        }
+        directory = Helper.replaceSystemProperties(directory);
+        transformedClassesToBeWrittenToDirectory.put(className, directory);
+    }
+
     private void addPrivilege(String spec) {
         if (numPrivilege == privilege.length) {
             Object[] arr = new Object[privilege.length * 2];
@@ -75,6 +98,7 @@ public class Specs {
     private Specs(String password) {
         registry = new LinkedHashMap<>();
         untrustedClasses = new LinkedHashSet<>();
+        transformedClassesToBeWrittenToDirectory = new LinkedHashMap<>();
         isActive = true;
         this.password = password;
     }
@@ -124,6 +148,9 @@ public class Specs {
             switch (key) {
                 case "verbose":
                     mySpecs.specVerbose(value);
+                    break;
+                case "debug.writeTransformedClass":
+                    mySpecs.specDebugWriteTransformedClass(key, value);
                     break;
                 case "distrust.plain":
                     mySpecs.addUntrustedClass(value);
@@ -194,6 +221,10 @@ public class Specs {
         return false;
     }
 
+    public static Map<String, String> getTransformedClassesToBeWrittenToDirectory() {
+        return mySpecs.transformedClassesToBeWrittenToDirectory;
+    }
+
     public static boolean isPrivileged(String mcm) {
         for (Object t : mySpecs.privilege) {
             if (t == null) break; // end of array
@@ -227,6 +258,12 @@ public class Specs {
     public static boolean include(VerboseCategory vc) {
         if (mySpecs == null) throw new Error("Internal error in permcheck library: mySpecs is null");
         return (mySpecs.verbose & vc.val()) != 0;
+    }
+
+    public static void log(VerboseCategory vc, String msg) {
+        if (Specs.include(vc)) {
+            System.out.println(msg);
+        }
     }
 
     public static Object[] getPrivilege() {

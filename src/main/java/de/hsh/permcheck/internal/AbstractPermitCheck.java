@@ -69,7 +69,7 @@ public abstract class AbstractPermitCheck extends AbstractCheck {
         if (parts.length < 1 || parts.length > 2) {
             throw new IllegalArgumentException("Illegal "+getSpecName()+" spec '"+value+"'. Should be separated into up to two fields with | as field separator.");
         }
-        String name = nameMapper.apply(replaceSystemProperties(parts[0].trim()));
+        String name = nameMapper.apply(Helper.replaceSystemProperties(parts[0].trim()));
         if (name.isEmpty()) {
             throw new IllegalArgumentException("Illegal "+getSpecName()+" spec '"+value+"'. first part NAME is missing.");
         }
@@ -88,26 +88,6 @@ public abstract class AbstractPermitCheck extends AbstractCheck {
         addPermission(name, actions);
     }
     
-    private static String replaceSystemProperties(String str) {
-        String origStr = str;
-        int i0, i1;
-        while ((i0 = str.indexOf("${{")) >= 0) {
-            i1 = str.indexOf("}}", i0);
-            if (i1 < i0) {
-                throw new IllegalArgumentException("Illegal property placeholder in spec '"+origStr+"'");
-            }
-            String propKey = str.substring(i0+3, i1);
-            if (propKey.isBlank()) {
-                throw new IllegalArgumentException("Illegal property placeholder in spec '"+origStr+"'");
-            }
-            String propVal = System.getProperty(propKey);
-            if (propVal == null) {
-                throw new IllegalArgumentException("Unresolved property placeholder '"+propKey+"' in spec '"+origStr+"'");
-            }
-            str = str.substring(0, i0) + propVal + str.substring(i1+2);
-        }
-        return str;
-    }
 
     private void addPermission(String name, int mask) {
         if (permissions == null) permissions = new LinkedHashMap<>();

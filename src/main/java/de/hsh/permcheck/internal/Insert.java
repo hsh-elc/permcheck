@@ -33,9 +33,7 @@ public abstract class Insert implements Logger {
 
     @Override
     public void log(VerboseCategory vc, String msg) {
-        if (Specs.include(vc)) {
-            System.out.println(msg);
-        }
+        Specs.log(vc, msg);
     }
 
     @Override

@@ -16,6 +16,20 @@
 verbose install,transform,no-permit,no-trace
 #verbose install,transform,permit,trace
 
+# Write transformed byte code for debugging purposes.
+# Format:
+#  debug.writeTransformedClass <fullyQualifiedClassName> | <directory>
+# In the directory, system properties are allowed, e. g.
+#  debug.writeTransformedClass java.lang.System | ${{java.io.tmpdir}}/transformedClasses
+#
+
+debug.writeTransformedClass java.lang.System | ${{java.io.tmpdir}}/transformedClasses
+debug.writeTransformedClass java.io.File | ${{java.io.tmpdir}}/transformedClasses
+debug.writeTransformedClass java.io.FileInputStream | ${{java.io.tmpdir}}/transformedClasses
+debug.writeTransformedClass java.io.RandomAccessFile | ${{java.io.tmpdir}}/transformedClasses
+debug.writeTransformedClass java.util.zip.ZipFile | ${{java.io.tmpdir}}/transformedClasses
+
+
 # Prevent VM exit (marker key):
 deny.exitVm
 

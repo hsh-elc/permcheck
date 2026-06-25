@@ -7,7 +7,6 @@ import java.lang.reflect.Constructor;
 import java.lang.reflect.Executable;
 import java.lang.reflect.Method;
 import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -17,6 +16,7 @@ import java.util.stream.Stream;
 import de.hsh.permcheck.internal.Insert;
 import de.hsh.permcheck.internal.Spec;
 import de.hsh.permcheck.internal.Specs;
+import de.hsh.permcheck.util.ClassFileWriter;
 import net.bytebuddy.ByteBuddy;
 import net.bytebuddy.agent.ByteBuddyAgent;
 import net.bytebuddy.agent.builder.AgentBuilder;
@@ -27,15 +27,14 @@ import net.bytebuddy.asm.Advice;
 import net.bytebuddy.description.method.MethodDescription;
 import net.bytebuddy.description.type.TypeDescription;
 import net.bytebuddy.dynamic.ClassFileLocator;
-import net.bytebuddy.dynamic.DynamicType;
 import net.bytebuddy.dynamic.loading.ClassInjector;
 import net.bytebuddy.matcher.ElementMatchers;
 import net.bytebuddy.pool.TypePool;
-import net.bytebuddy.utility.JavaModule;
 
 public class Start {
 
     private static boolean byteBuddyIsConfigured = false;
+    private static final String INTERNAL_PKG_PREFIX = Start.class.getPackageName() + ".internal.";
     
     // static {
     //     System.out.println("Klasse " + Start.class + " geladen durch: " + Start.class.getClassLoader());
@@ -55,6 +54,19 @@ public class Start {
      * @throws Error if the byte buddy agent cannot be found or installed.
      */
     public static void configureByteBuddyAgentIfAny(String policy, String password, String tempFolderForBootstrapInjection) throws IllegalArgumentException, IOException, Error {
+        Instrumentation instrumentation = getInstrumentation();
+
+        TypePool typePool = TypePool.Default.ofSystemLoader(); // app class loader
+        
+        injectInternalClassesIntoBootClassLoader(typePool, tempFolderForBootstrapInjection, policy, instrumentation);
+
+        Specs.setup(policy, password);
+
+        installStdLibTransformations(typePool, instrumentation);
+        byteBuddyIsConfigured = true;
+    }
+
+    private static Instrumentation getInstrumentation() {
         Instrumentation instrumentation = null;
         try {
             instrumentation = ByteBuddyAgent.getInstrumentation();
@@ -68,14 +80,11 @@ public class Start {
                 throw new Error("Cannot find installed byte buddy agent.", ex2);
             }
         }
+        return instrumentation;
+    }
 
-        String internalPkgPrefix = Start.class.getPackageName() + ".internal.";
 
-        // Quelle: https://stackoverflow.com/questions/69267044/insert-a-custom-class-into-bootstrap-classloader-into-java-base-module
-        TypePool typePool = TypePool.Default.ofSystemLoader();
-        TypeDescription myAdvicesTd = typePool.describe(internalPkgPrefix+"MyAdvices").resolve();
-        TypeDescription myAdvicesConstructorTd = typePool.describe(internalPkgPrefix+"MyAdvicesConstructor").resolve();
-        
+    private static void injectInternalClassesIntoBootClassLoader(TypePool typePool, String tempFolderForBootstrapInjection, String policy, Instrumentation instrumentation) throws IOException {
 
         File temp;
         if (tempFolderForBootstrapInjection == null) {
@@ -162,14 +171,15 @@ public class Start {
                 "VerboseCategory"
             };
 
-// System.out.println("Before injecting of internal permcheck classes into boottsrap classloader ...");
+// System.out.println("Before injecting of internal permcheck classes into bootstrap classloader ...");
 // Scanner console = new Scanner(System.in);
 // console.nextLine();
+        // Quelle: https://stackoverflow.com/questions/69267044/insert-a-custom-class-into-bootstrap-classloader-into-java-base-module
         for (String className : classNames) {
 // System.out.println("className: " + className);
             Map<TypeDescription, byte[]> types = new ByteBuddy()
                     .redefine(
-                            typePool.describe(internalPkgPrefix+className).resolve(),
+                            typePool.describe(INTERNAL_PKG_PREFIX+className).resolve(),
                             ClassFileLocator.ForClassLoader.ofSystemLoader())
                     .make()
                     .getAllTypes();
@@ -194,12 +204,15 @@ public class Start {
 
         // This doesn't work on Windows, since the jar files, that were created and loaded above, cannot
         // be deleted from the running JVM.
-        // for (File f : temp.listFiles()) {
-        //     f.deleteOnExit();
-        // }
-        // temp.deleteOnExit();
+        for (File f : temp.listFiles()) {
+            f.deleteOnExit();
+        }
+        temp.deleteOnExit();
+    }
 
-        Specs.setup(policy, password);
+    private static void installStdLibTransformations(TypePool typePool, Instrumentation instrumentation) {
+        TypeDescription myAdvicesTd = typePool.describe(INTERNAL_PKG_PREFIX+"MyAdvices").resolve();
+        TypeDescription myAdvicesConstructorTd = typePool.describe(INTERNAL_PKG_PREFIX+"MyAdvicesConstructor").resolve();
 
         HashMap<Class<?>, List<Spec>> map = new HashMap<>();
         for (Executable e : Specs.getExecutables()) {
@@ -212,19 +225,6 @@ public class Start {
 
 
         AgentBuilder agentBuilderRedefine = new AgentBuilder.Default()
-// .with(new AgentBuilder.Listener.Filtering(
-//     new ElementMatcher<String>() {
-//         @Override
-//         public boolean matches(String arg0) {
-//             if (arg0.startsWith("geom") || arg0.startsWith("dom.circle") || arg0.startsWith("de.hsh.graja.modules.junit.SubmissionClassLoader")) {
-//                 System.out.println("Filter.matches('"+arg0+"'): true");
-//                 new Exception().printStackTrace(System.out);
-//                 return true;
-//             }
-//             return false;
-//         }
-//     },
-// AgentBuilder.Listener.StreamWriting.toSystemOut()))
             .disableClassFormatChanges();
 
         if (Specs.verboseInstall()) {
@@ -238,8 +238,15 @@ public class Start {
 
         agentBuilderRedefine = agentBuilderRedefine
             .with(AgentBuilder.TypeStrategy.Default.REDEFINE)
-            .with(AgentBuilder.RedefinitionStrategy.REDEFINITION)
-            .with(new AgentBuilder.Listener.WithTransformationsOnly(new ClassFileWriter()))
+            .with(AgentBuilder.RedefinitionStrategy.REDEFINITION);
+
+        if (!Specs.getTransformedClassesToBeWrittenToDirectory().isEmpty()) {
+            ClassFileWriter cfw = new ClassFileWriter(Specs.getTransformedClassesToBeWrittenToDirectory());
+            agentBuilderRedefine = agentBuilderRedefine
+                .with(new AgentBuilder.Listener.WithTransformationsOnly(cfw));
+        }
+
+        agentBuilderRedefine = agentBuilderRedefine
             .ignore(ElementMatchers.none());
 
         // Now transform standard library classes:
@@ -278,14 +285,6 @@ public class Start {
         
         agentBuilderRedefine.installOn(instrumentation);
 
-        // try {
-        //     instrumentation.retransformClasses(Class.forName("main.TestMain$1TestCaseSystemGetenvDenied"));
-        // } catch (ClassNotFoundException e1) {
-        //     throw new Error(e1);
-        // } catch (UnmodifiableClassException e1) {
-        //     throw new Error(e1);
-        // }
-        byteBuddyIsConfigured = true;
     }
 
     public static void pause(String password) {
@@ -303,33 +302,4 @@ public class Start {
     public static boolean isInitialized() {
         return byteBuddyIsConfigured;
     }
-
-
-    private static class ClassFileWriter implements AgentBuilder.Listener {
-        @Override
-        public void onTransformation(TypeDescription typeDescription, ClassLoader classLoader, 
-                                        JavaModule module, boolean loaded, DynamicType dynamicType) {
-            
-            String[] cn = { "subm.Submission", "subm.SuperSubmission", "java.lang.System", "java.io.File", "java.util.zip.ZipFile", "java.io.RandomAccessFile", "java.io.FileInputStream", "main.TestMain$1TestCaseSystemGetenvDenied"};
-            for (String c : cn) {
-                if (typeDescription.getName().equals(c)) {
-                    // Hier liegt der transformierte Bytecode vor!
-                    byte[] bytecode = dynamicType.getBytes();
-                    
-                    // Bytecode mit ASM als Text ausgeben
-                    System.out.println("Transformierte Klasse: " + typeDescription.getName());
-                    try {
-                        Files.write(Path.of("D:\\ws\\github_hsh-elc_permcheck\\"+c+".class"), bytecode);
-                    } catch (IOException e) {
-                        throw new Error(e);
-                    }
-                }
-            }
-        }
-        @Override public void onDiscovery(String typeName, ClassLoader classLoader, JavaModule module, boolean loaded) {}
-        @Override public void onIgnored(TypeDescription typeDescription, ClassLoader classLoader, JavaModule module, boolean loaded) {}
-        @Override public void onError(String typeName, ClassLoader classLoader, JavaModule module, boolean loaded, Throwable throwable) {}
-        @Override public void onComplete(String typeName, ClassLoader classLoader, JavaModule module, boolean loaded) {}
-    }
-    
 }
