@@ -148,8 +148,8 @@ public class TestMain {
         System.out.println("02    -Djava.security.manager -Djava.security.policy==security.policy \\");
         System.out.println("03    -XX:-EnableDynamicAgentLoading -Xshare:off -Dnet.bytebuddy.safe=true -ea -javaagent:lib/byte-buddy-agent-1.15.11.jar \\");
         System.out.println("04    --add-reads java.base=ALL-UNNAMED \\");
-        System.out.println("05    -cp byte-buddy-1.15.11.jar;byte-buddy-agent-1.15.11.jar;junit-4.12.jar;hamcrest-core-1.3.jar \\");
-        System.out.println("06    main.Main4 \\");
+        System.out.println("05    -cp byte-buddy-1.15.11.jar;byte-buddy-agent-1.15.11.jar;junit-4.12.jar;hamcrest-core-1.3.jar;permcheck-0.0.1jar;permcheck-0.0.1-tests.jar \\");
+        System.out.println("06    main.TestMain \\");
         System.out.println("07    --permcheck.policy permcheck.policy \\");
         System.out.println("08    --permcheck.tmpfolder path/to/tmpfolderforbootstrapinjection");
         System.out.println();
@@ -251,6 +251,7 @@ public class TestMain {
 
         class TestCasePerformance extends TestCase {
             @Override public Double apply(Double x) {
+                long start = System.currentTimeMillis();
                 for (int i=1; i<=100_000; i++) {
                     try {
                         Math.class.getDeclaredFields();
@@ -258,10 +259,11 @@ public class TestMain {
                         throw new AssertionError("Internal error in TestCase");
                     } catch (PermcheckException e) {
                         // nothing to be done
-                        if (i%10000 == 0)
-                            System.out.format("TestCasePerformance: %d%n", i);
                     }
+                    if (i%10000 == 0)
+                        System.out.format("TestCasePerformance: %d%n", i);
                 }
+                System.out.format("Time: %.3f ms%n", (double)System.currentTimeMillis() - start);
                 return Math.sqrt(x);
             }
         }
