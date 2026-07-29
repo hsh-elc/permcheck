@@ -121,6 +121,8 @@ public class Specs {
             new DenyReflectionGetStackTraceCheck(),
             new DenyReflectionGetStackWalkerWithClassReferenceCheck(),
             new DenyReflectionGetClassLoader(),
+            new DenyReflectionCreateClassLoader(),
+            new DenyReflectionAccessClassInNonExportedBootLayerPackage(),
             new PermitFileCheck(),
             new PermitPropertyCheck(),
             new PermitEnvCheck()

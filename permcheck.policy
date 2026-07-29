@@ -48,6 +48,12 @@ deny.reflectionGetStackWalkerWithClassReference
 # Marker key to prevent querying the classloader of arbitrary classes
 deny.reflectionGetClassLoader
 
+# Marker key to prevent creating a classloader
+deny.reflectionCreateClassLoader
+
+# Marker key to prevent accessing classes in packages like sun.misc or jdk.internal:
+deny.reflectionAccessClassInNonExportedBootLayerPackage
+
 # Marker key to initiate any file permission checks
 # If missing, no file access will be checked
 deny.fileExceptSpecifiedPermissions
@@ -232,8 +238,6 @@ privilege.plain java.base/java.security.Security#initialize
 privilege.plain java.base/java.security.SecureRandom#<init>
 privilege.plain java.base/java.security.SecureRandom#next
 privilege.plain java.base/java.text.DateFormatSymbols#<init>
-privilege.plain java.desktop/java.awt.Desktop#isDesktopSupported
-privilege.plain java.desktop/java.awt.Desktop#getDesktop
 privilege.plain java.base/jdk.internal.util.random.RandomSupport#secureRandomSeedRequested
 privilege.plain java.base/jdk.internal.logger.AbstractLoggerWrapper#isLoggable
 privilege.plain java.base/jdk.internal.loader.BuiltinClassLoader#findClassOnClassPathOrNull
@@ -254,7 +258,11 @@ privilege.plain javafx.graphics/javafx.stage.Window#show
 privilege.plain javafx.graphics/com.sun.javafx.font.PrismFontFactory#getFontFactory
 privilege.plain javafx.graphics/com.sun.javafx.font.PrismFontFactory#getFontResource
 privilege.plain javafx.graphics/com.sun.javafx.font.PrismFontFactory#getDefaultFontResource
-
+privilege.regex java\\.desktop/javax\\.swing\\.[A-Za-z\\.]+#<clinit>
+privilege.regex java\\.desktop/java\\.awt\\.[A-Za-z\\.]+#<clinit>
+privilege.plain java.desktop/java.awt.Desktop#isDesktopSupported
+privilege.plain java.desktop/java.awt.Desktop#getDesktop
+privilege.plain java.desktop/javax.swing.UIManager#loadSwingProperties
 
 # We assign privileges to many test factory methods, since these methods need
 # to prepare files and classes before instantiating TestCase objects.

@@ -14,9 +14,12 @@ import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
+import java.lang.constant.Constable;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
+import java.lang.module.Configuration;
+import java.lang.module.ModuleFinder;
 import java.lang.invoke.MethodHandles.Lookup;
 import java.lang.reflect.AccessibleObject;
 import java.lang.reflect.Constructor;
@@ -25,6 +28,8 @@ import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.lang.reflect.Proxy;
 import java.math.BigInteger;
+import java.net.URL;
+import java.net.URLClassLoader;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.DirectoryStream;
@@ -50,17 +55,21 @@ import java.util.Locale;
 import java.util.Properties;
 import java.util.Random;
 import java.util.Scanner;
+import java.util.Set;
 import java.util.TimeZone;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 import java.util.zip.ZipOutputStream;
 
+import org.junit.internal.Checks;
 import org.junit.runner.*;
 import org.junit.runner.notification.Failure;
 
 import de.hsh.permcheck.Start;
+import de.hsh.permcheck.internal.Insert;
 import de.hsh.permcheck.internal.MyAdvices;
 import de.hsh.permcheck.internal.PermcheckException;
+import de.hsh.permcheck.internal.Specs;
 import grader.Grader;
 import grader.TestRunner;
 import net.bytebuddy.dynamic.ClassFileLocator;
@@ -127,6 +136,7 @@ public class TestMain {
             // Scanner console = new Scanner(System.in);
             // console.nextLine();
 
+            //ClassLoader.getSystemClassLoader().loadClass("sun.misc.Unsafe");
             JUnitCore junit = new JUnitCore();
 
             gradeSubmission(junit, PASSWORD);
@@ -225,7 +235,10 @@ public class TestMain {
                 }
             }
             if (result.getFailureCount() > 0) {
+                System.out.println(what + ": FAILURE");
                 throw new AssertionError("Failure in "+what+". Test run aborted.\n" + sb.toString());
+            } else {
+                System.out.println(what + ": SUCCESS");
             }
         }
     }
@@ -278,7 +291,7 @@ public class TestMain {
 
         class TestCaseWrongResult extends TestCase {
             public TestCaseWrongResult() {
-                super(AssertionError.class, "but was:");
+                super(AssertionError.class, ".*but was:.*");
             }
             @Override public Double apply(Double x) {
                 return 1+Math.sqrt(x);
@@ -295,7 +308,7 @@ public class TestMain {
 
         class TestCasePausePermcheckDenied extends TestCase {
             public TestCasePausePermcheckDenied() {
-                super(PermcheckException.class, "env is not granted for 'PATH'");
+                super(PermcheckException.class, ".*env is not granted for 'PATH'.*");
             }
             @Override public Double apply(Double x) {
                 try {
@@ -333,12 +346,12 @@ public class TestMain {
     @TestCaseFactory
     private static List<TestCase> testExitVm() {
         Class<? extends Throwable> expectedException = PermcheckException.class;
-        String expectedMsg = "exitVm is not granted";
+        String expectedMsgPattern = ".*exitVm is not granted.*";
         ArrayList<TestCase> result = new ArrayList<>();
 
         class TestCaseSystemExit extends TestCase {
             public TestCaseSystemExit() {
-                super(expectedException, expectedMsg);
+                super(expectedException, expectedMsgPattern);
             }
             @Override public Double apply(Double x) {
                 System.exit(0);
@@ -349,7 +362,7 @@ public class TestMain {
 
         class TestCaseRuntimeExit extends TestCase {
             public TestCaseRuntimeExit() {
-                super(expectedException, expectedMsg);
+                super(expectedException, expectedMsgPattern);
             }
             @Override public Double apply(Double x) {
                 Runtime.getRuntime().exit(0);
@@ -360,7 +373,7 @@ public class TestMain {
 
         class TestCaseRuntimeHalt extends TestCase {
             public TestCaseRuntimeHalt() {
-                super(expectedException, expectedMsg);
+                super(expectedException, expectedMsgPattern);
             }
             @Override public Double apply(Double x) {
                 Runtime.getRuntime().halt(0);
@@ -375,7 +388,7 @@ public class TestMain {
     @TestCaseFactory
     private static List<TestCase> testReflectionSetAccessible() {
         Class<? extends Throwable> expectedException = PermcheckException.class;
-        String expectedMsg = "reflectionSetAccessible is not granted";
+        String expectedMsgPattern = ".*reflectionSetAccessible is not granted.*";
         class Dummy {
             @SuppressWarnings("unused") private int field;
             @SuppressWarnings("unused") private void method() {}
@@ -388,7 +401,7 @@ public class TestMain {
 
         class TestCaseFieldSetAccessible extends TestCase {
             public TestCaseFieldSetAccessible() {
-                super(expectedException, expectedMsg);
+                super(expectedException, expectedMsgPattern);
             }
             @Override public Double apply(Double x) {
                 try {
@@ -404,7 +417,7 @@ public class TestMain {
 
         class TestCaseMethodSetAccessible extends TestCase {
             public TestCaseMethodSetAccessible() {
-                super(expectedException, expectedMsg);
+                super(expectedException, expectedMsgPattern);
             }
             @Override public Double apply(Double x) {
                 try {
@@ -420,7 +433,7 @@ public class TestMain {
 
         class TestCaseConstructorSetAccessible extends TestCase {
             public TestCaseConstructorSetAccessible() {
-                super(expectedException, expectedMsg);
+                super(expectedException, expectedMsgPattern);
             }
             @Override public Double apply(Double x) {
                 try {
@@ -436,7 +449,7 @@ public class TestMain {
 
         class TestCaseAccessibleObjectSetAccessible extends TestCase {
             public TestCaseAccessibleObjectSetAccessible() {
-                super(expectedException, expectedMsg, "AccessibleObject.setAccessible(AccessibleObject[], boolean)");
+                super(expectedException, expectedMsgPattern, "AccessibleObject.setAccessible(AccessibleObject[], boolean)");
             }
             @Override public Double apply(Double x) {
                 try {
@@ -456,7 +469,7 @@ public class TestMain {
 
         class TestCaseAccessibleObjectTrySetAccessible extends TestCase {
             public TestCaseAccessibleObjectTrySetAccessible() {
-                super(expectedException, expectedMsg);
+                super(expectedException, expectedMsgPattern);
             }
             @Override public Double apply(Double x) {
                 try {
@@ -472,7 +485,7 @@ public class TestMain {
 
         class TestCaseMethodHandlesReflectAs extends TestCase {
             public TestCaseMethodHandlesReflectAs() {
-                super(expectedException, expectedMsg);
+                super(expectedException, expectedMsgPattern);
             }
             @Override public Double apply(Double x) {
                 MethodHandles.Lookup lookup = MethodHandles.lookup();
@@ -497,7 +510,7 @@ public class TestMain {
 
         class TestCaseMethodHandlesPrivateLookupIn extends TestCase {
             public TestCaseMethodHandlesPrivateLookupIn() {
-                super(expectedException, expectedMsg);
+                super(expectedException, expectedMsgPattern);
             }
             @Override public Double apply(Double x) {
                 try {
@@ -518,7 +531,7 @@ public class TestMain {
     @TestCaseFactory
     private static List<TestCase> testReflectionAccessDeclaredMembers() {
         Class<? extends Throwable> expectedException = PermcheckException.class;
-        String expectedMsg = "reflectionAccessDeclaredMembers is not granted";
+        String expectedMsgPattern = ".*reflectionAccessDeclaredMembers is not granted.*";
         class Dummy {
             @SuppressWarnings("unused") private int field;
             @SuppressWarnings("unused") private void method() {}
@@ -543,7 +556,7 @@ public class TestMain {
 
         class TestCaseClassGetDeclaredFieldDifferentClassLoader extends TestCase {
             public TestCaseClassGetDeclaredFieldDifferentClassLoader() {
-                super(expectedException, expectedMsg, "Class.getDeclaredField(String) on different classloader");
+                super(expectedException, expectedMsgPattern, "Class.getDeclaredField(String) on different classloader");
             }
             @Override public Double apply(Double x) {
                 try {
@@ -577,7 +590,7 @@ public class TestMain {
 
         class TestCaseClassGetDeclaredMethodDifferentClassLoader extends TestCase {
             public TestCaseClassGetDeclaredMethodDifferentClassLoader() {
-                super(expectedException, expectedMsg);
+                super(expectedException, expectedMsgPattern);
             }
             @Override public Double apply(Double x) {
                 try {
@@ -608,7 +621,7 @@ public class TestMain {
 
         class TestCaseClassGetDeclaredConstructorDifferentClassLoader extends TestCase {
             public TestCaseClassGetDeclaredConstructorDifferentClassLoader() {
-                super(expectedException, expectedMsg);
+                super(expectedException, expectedMsgPattern);
             }
             @Override public Double apply(Double x) {
                 try {
@@ -639,7 +652,7 @@ public class TestMain {
 
         class TestCaseClassGetEnclosingMethodDifferentClassLoader extends TestCase {
             public TestCaseClassGetEnclosingMethodDifferentClassLoader() {
-                super(expectedException, expectedMsg);
+                super(expectedException, expectedMsgPattern);
             }
             @Override public Double apply(Double x) {
                 java.awt.Point.class.getEnclosingMethod();
@@ -660,7 +673,7 @@ public class TestMain {
 
         class TestCaseClassGetEnclosingConstructorDifferentClassLoader extends TestCase {
             public TestCaseClassGetEnclosingConstructorDifferentClassLoader() {
-                super(expectedException, expectedMsg);
+                super(expectedException, expectedMsgPattern);
             }
             @Override public Double apply(Double x) {
                 java.awt.Point.class.getEnclosingConstructor();
@@ -681,7 +694,7 @@ public class TestMain {
 
         class TestCaseClassGetDeclaredFieldsDifferentClassLoader extends TestCase {
             public TestCaseClassGetDeclaredFieldsDifferentClassLoader() {
-                super(expectedException, expectedMsg);
+                super(expectedException, expectedMsgPattern);
             }
             @Override public Double apply(Double x) {
                 java.awt.Point.class.getDeclaredFields();
@@ -702,7 +715,7 @@ public class TestMain {
 
         class TestCaseClassGetDeclaredMethodsDifferentClassLoader extends TestCase {
             public TestCaseClassGetDeclaredMethodsDifferentClassLoader() {
-                super(expectedException, expectedMsg);
+                super(expectedException, expectedMsgPattern);
             }
             @Override public Double apply(Double x) {
                 java.awt.Point.class.getDeclaredMethods();
@@ -723,7 +736,7 @@ public class TestMain {
 
         class TestCaseClassGetDeclaredConstructorsDifferentClassLoader extends TestCase {
             public TestCaseClassGetDeclaredConstructorsDifferentClassLoader() {
-                super(expectedException, expectedMsg);
+                super(expectedException, expectedMsgPattern);
             }
             @Override public Double apply(Double x) {
                 java.awt.Point.class.getDeclaredConstructors();
@@ -744,7 +757,7 @@ public class TestMain {
 
         class TestCaseClassGetDeclaredClassesDifferentClassLoader extends TestCase {
             public TestCaseClassGetDeclaredClassesDifferentClassLoader() {
-                super(expectedException, expectedMsg);
+                super(expectedException, expectedMsgPattern);
             }
             @Override public Double apply(Double x) {
                 java.awt.Point.class.getDeclaredClasses();
@@ -765,7 +778,7 @@ public class TestMain {
 
         class TestCaseClassGetRecordComponentsDifferentClassLoader extends TestCase {
             public TestCaseClassGetRecordComponentsDifferentClassLoader() {
-                super(expectedException, expectedMsg);
+                super(expectedException, expectedMsgPattern);
             }
             @Override public Double apply(Double x) {
                 java.awt.Point.class.getRecordComponents();
@@ -822,7 +835,7 @@ public class TestMain {
 
         class TestCaseMethodHandlesLookupInClassFindStaticDifferentClassLoaderPublicMethod extends TestCase {
             public TestCaseMethodHandlesLookupInClassFindStaticDifferentClassLoaderPublicMethod() {
-                super(expectedException, expectedMsg);
+                super(expectedException, expectedMsgPattern);
             }
             @Override public Double apply(Double x) {
                 try {
@@ -843,7 +856,7 @@ public class TestMain {
 
         class TestCaseMethodHandlesLookupFindStaticDifferentClassLoaderPrivateMethod extends TestCase {
             public TestCaseMethodHandlesLookupFindStaticDifferentClassLoaderPrivateMethod() {
-                super(Error.class, "IllegalAccessException: no such method:");
+                super(Error.class, ".*IllegalAccessException: no such method:.*");
             }
             @Override public Double apply(Double x) {
                 try {
@@ -893,7 +906,7 @@ public class TestMain {
 
         class TestCaseMethodHandlesLookupFindStaticSetterDifferentClassLoader extends TestCase {
             public TestCaseMethodHandlesLookupFindStaticSetterDifferentClassLoader() {
-                super(Error.class, "IllegalAccessException: unexpected set of a final field:");
+                super(Error.class, ".*IllegalAccessException: unexpected set of a final field:.*");
             }
             @Override public Double apply(Double x) {
                 try {
@@ -915,7 +928,7 @@ public class TestMain {
 
         class TestCaseMethodHandlesLookupInClassFindStaticSetterDifferentClassLoader extends TestCase {
             public TestCaseMethodHandlesLookupInClassFindStaticSetterDifferentClassLoader() {
-                super(expectedException, expectedMsg);
+                super(expectedException, expectedMsgPattern);
             }
             @Override public Double apply(Double x) {
                 try {
@@ -997,7 +1010,7 @@ public class TestMain {
 
         class TestCaseMethodHandlesLookupInClassFindStaticGetterDifferentClassLoader extends TestCase {
             public TestCaseMethodHandlesLookupInClassFindStaticGetterDifferentClassLoader() {
-                super(expectedException, expectedMsg);
+                super(expectedException, expectedMsgPattern);
             }
             @Override public Double apply(Double x) {
                 try {
@@ -1060,7 +1073,7 @@ public class TestMain {
 
         class TestCaseMethodHandlesLookupInClassFindStaticVarHandleDifferentClassLoader extends TestCase {
             public TestCaseMethodHandlesLookupInClassFindStaticVarHandleDifferentClassLoader() {
-                super(expectedException, expectedMsg);
+                super(expectedException, expectedMsgPattern);
             }
             @Override public Double apply(Double x) {
                 try {
@@ -1138,7 +1151,7 @@ public class TestMain {
 
         class TestCaseMethodHandlesLookupInClassFindSetterDifferentClassLoader extends TestCase {
             public TestCaseMethodHandlesLookupInClassFindSetterDifferentClassLoader() {
-                super(expectedException, expectedMsg);
+                super(expectedException, expectedMsgPattern);
             }
             @Override public Double apply(Double x) {
                 try {
@@ -1222,7 +1235,7 @@ public class TestMain {
 
         class TestCaseMethodHandlesLookupInClassFindGetterDifferentClassLoader extends TestCase {
             public TestCaseMethodHandlesLookupInClassFindGetterDifferentClassLoader() {
-                super(expectedException, expectedMsg);
+                super(expectedException, expectedMsgPattern);
             }
             @Override public Double apply(Double x) {
                 try {
@@ -1295,7 +1308,7 @@ public class TestMain {
 
         class TestCaseMethodHandlesLookupInClassFindVirtualDifferentClassLoaderPublicMethod extends TestCase {
             public TestCaseMethodHandlesLookupInClassFindVirtualDifferentClassLoaderPublicMethod() {
-                super(expectedException, expectedMsg);
+                super(expectedException, expectedMsgPattern);
             }
             @Override public Double apply(Double x) {
                 try {
@@ -1365,7 +1378,7 @@ public class TestMain {
 
         class TestCaseMethodHandlesLookupInClassFindConstructorDifferentClassLoaderPublicMethod extends TestCase {
             public TestCaseMethodHandlesLookupInClassFindConstructorDifferentClassLoaderPublicMethod() {
-                super(expectedException, expectedMsg);
+                super(expectedException, expectedMsgPattern);
             }
             @Override public Double apply(Double x) {
                 try {
@@ -1500,7 +1513,7 @@ public class TestMain {
 
         class TestCaseMethodHandlesLookupInClassFindSpecialDifferentClassLoaderPublicMethod extends TestCase {
             public TestCaseMethodHandlesLookupInClassFindSpecialDifferentClassLoaderPublicMethod() {
-                super(expectedException, expectedMsg);
+                super(expectedException, expectedMsgPattern);
             }
             @Override public Double apply(Double x) {
                 try {
@@ -1565,7 +1578,7 @@ public class TestMain {
 
         class TestCaseMethodHandlesLookupInClassFindVarHandleDifferentClassLoader extends TestCase {
             public TestCaseMethodHandlesLookupInClassFindVarHandleDifferentClassLoader() {
-                super(expectedException, expectedMsg);
+                super(expectedException, expectedMsgPattern);
             }
             @Override public Double apply(Double x) {
                 try {
@@ -1645,7 +1658,7 @@ public class TestMain {
 
         class TestCaseMethodHandlesLookupInClassBindDifferentClassLoaderPublicMethod extends TestCase {
             public TestCaseMethodHandlesLookupInClassBindDifferentClassLoaderPublicMethod() {
-                super(expectedException, expectedMsg);
+                super(expectedException, expectedMsgPattern);
             }
             @Override public Double apply(Double x) {
                 BigInteger bi = BigInteger.valueOf(-2L);
@@ -1670,7 +1683,7 @@ public class TestMain {
     @TestCaseFactory
     private static List<TestCase> testReflectionGetStacktrace() {
         Class<? extends Throwable> expectedException = PermcheckException.class;
-        String expectedMsg = "reflectionGetStackTrace is not granted";
+        String expectedMsgPattern = ".*reflectionGetStackTrace is not granted.*";
 
         ArrayList<TestCase> result = new ArrayList<>();
 
@@ -1684,7 +1697,7 @@ public class TestMain {
 
         class TestCaseThreadGetStackTraceOtherThread extends TestCase {
             public TestCaseThreadGetStackTraceOtherThread() {
-                super(expectedException, expectedMsg);
+                super(expectedException, expectedMsgPattern);
             }
             @Override public Double apply(Double x) {
                 new Thread().getStackTrace();
@@ -1695,7 +1708,7 @@ public class TestMain {
 
         class TestCaseThreadGetAllStackTraces extends TestCase {
             public TestCaseThreadGetAllStackTraces() {
-                super(expectedException, expectedMsg);
+                super(expectedException, expectedMsgPattern);
             }
             @Override public Double apply(Double x) {
                 Thread.getAllStackTraces();
@@ -1710,7 +1723,7 @@ public class TestMain {
     @TestCaseFactory
     private static List<TestCase> testReflectionGetStackWalkerWithClassReference() {
         Class<? extends Throwable> expectedException = PermcheckException.class;
-        String expectedMsg = "reflectionGetStackWalkerWithClassReference is not granted";
+        String expectedMsgPattern = ".*reflectionGetStackWalkerWithClassReference is not granted.*";
 
         ArrayList<TestCase> result = new ArrayList<>();
 
@@ -1724,7 +1737,7 @@ public class TestMain {
 
         class TestCaseStackWalkerGetInstanceOptionWithRetainClassReference extends TestCase {
             public TestCaseStackWalkerGetInstanceOptionWithRetainClassReference() {
-                super(expectedException, expectedMsg);
+                super(expectedException, expectedMsgPattern);
             }
             @Override public Double apply(Double x) {
                 StackWalker.getInstance(Option.RETAIN_CLASS_REFERENCE);
@@ -1743,7 +1756,7 @@ public class TestMain {
 
         class TestCaseStackWalkerGetInstanceSetOptionWithRetainClassReference extends TestCase {
             public TestCaseStackWalkerGetInstanceSetOptionWithRetainClassReference() {
-                super(expectedException, expectedMsg);
+                super(expectedException, expectedMsgPattern);
             }
             @Override public Double apply(Double x) {
                 StackWalker.getInstance(EnumSet.of(Option.RETAIN_CLASS_REFERENCE, Option.SHOW_HIDDEN_FRAMES));
@@ -1762,7 +1775,7 @@ public class TestMain {
 
         class TestCaseStackWalkerGetInstanceSetOptionIntWithRetainClassReference extends TestCase {
             public TestCaseStackWalkerGetInstanceSetOptionIntWithRetainClassReference() {
-                super(expectedException, expectedMsg);
+                super(expectedException, expectedMsgPattern);
             }
             @Override public Double apply(Double x) {
                 StackWalker.getInstance(EnumSet.of(Option.RETAIN_CLASS_REFERENCE, Option.SHOW_HIDDEN_FRAMES), 10);
@@ -1777,7 +1790,7 @@ public class TestMain {
     @TestCaseFactory
     private static List<TestCase> testReflectionGetClassLoader() {
         Class<? extends Throwable> expectedException = PermcheckException.class;
-        String expectedMsg = "reflectionGetClassLoader is not granted";
+        String expectedMsgPattern = ".*reflectionGetClassLoader is not granted.*";
 
         Class<?> clazzHelloWorldFromMemClassLoader, clazzGetSystemClassLoaderFromMemClassLoader;
         try {
@@ -1800,7 +1813,7 @@ public class TestMain {
 
         class TestCaseThreadGetContextClassLoaderOtherThread extends TestCase {
             public TestCaseThreadGetContextClassLoaderOtherThread() {
-                super(expectedException, expectedMsg);
+                super(expectedException, expectedMsgPattern);
             }
             @Override public Double apply(Double x) {
                 Thread t = new Thread();
@@ -1814,7 +1827,7 @@ public class TestMain {
 
         class TestCaseClassGetClassLoaderOtherClassLoader extends TestCase {
             public TestCaseClassGetClassLoaderOtherClassLoader() {
-                super(expectedException, expectedMsg);
+                super(expectedException, expectedMsgPattern);
             }
             @Override public Double apply(Double x) {
                 clazzHelloWorldFromMemClassLoader.getClassLoader(); // should fail
@@ -1833,7 +1846,7 @@ public class TestMain {
 
         class TestCaseClassLoaderGetParentChildOfOtherClassLoader extends TestCase {
             public TestCaseClassLoaderGetParentChildOfOtherClassLoader() {
-                super(expectedException, expectedMsg);
+                super(expectedException, expectedMsgPattern);
             }
             @Override public Double apply(Double x) {
                 ClassLoader sc = ClassLoader.getSystemClassLoader();
@@ -1845,7 +1858,7 @@ public class TestMain {
 
         class TestCaseClassLoaderGetSystemClassLoaderForClassLoadedByOtherClassLoader extends TestCase {
             public TestCaseClassLoaderGetSystemClassLoaderForClassLoadedByOtherClassLoader() {
-                super(expectedException, expectedMsg);
+                super(expectedException, expectedMsgPattern);
             }
             @Override public Double apply(Double x) {
                 try {
@@ -1868,7 +1881,7 @@ public class TestMain {
 
         class TestCaseClassLoaderGetPlatformClassLoaderForClassLoadedBySystemClassLoader extends TestCase {
             public TestCaseClassLoaderGetPlatformClassLoaderForClassLoadedBySystemClassLoader() {
-                super(expectedException, expectedMsg);
+                super(expectedException, expectedMsgPattern);
             }
             @Override public Double apply(Double x) {
                 ClassLoader.getPlatformClassLoader(); // should fail
@@ -1879,7 +1892,7 @@ public class TestMain {
 
         class TestCaseClassForName3ArgsWithNullClassLoaderArg extends TestCase {
             public TestCaseClassForName3ArgsWithNullClassLoaderArg() {
-                super(expectedException, expectedMsg);
+                super(expectedException, expectedMsgPattern);
             }
             @Override public Double apply(Double x) {
                 try {
@@ -1895,7 +1908,7 @@ public class TestMain {
 
         class TestCaseClassForName2ArgsWithModuleDifferentFromCallerModule extends TestCase {
             public TestCaseClassForName2ArgsWithModuleDifferentFromCallerModule() {
-                super(expectedException, expectedMsg);
+                super(expectedException, expectedMsgPattern);
             }
             @Override public Double apply(Double x) {
                 Class.forName(java.lang.Object.class.getModule(), "Any");
@@ -1906,7 +1919,7 @@ public class TestMain {
 
         class TestCaseMethodHandlesLookupEnsureInitializedWithNotFullyPrivilegedLookup extends TestCase {
             public TestCaseMethodHandlesLookupEnsureInitializedWithNotFullyPrivilegedLookup() {
-                super(expectedException, expectedMsg);
+                super(expectedException, expectedMsgPattern);
             }
             @Override public Double apply(Double x) {
                 try {
@@ -1937,7 +1950,7 @@ public class TestMain {
 
         class TestCaseMethodHandlesLookupAccessClassWithNotFullyPrivilegedLookup extends TestCase {
             public TestCaseMethodHandlesLookupAccessClassWithNotFullyPrivilegedLookup() {
-                super(expectedException, expectedMsg);
+                super(expectedException, expectedMsgPattern);
             }
             @Override public Double apply(Double x) {
                 try {
@@ -1968,7 +1981,7 @@ public class TestMain {
 
         class TestCaseMethodTypeFromMethodDescriptorStringWithNullClassLoader extends TestCase {
             public TestCaseMethodTypeFromMethodDescriptorStringWithNullClassLoader() {
-                super(expectedException, expectedMsg);
+                super(expectedException, expectedMsgPattern);
             }
             @Override public Double apply(Double x) {
                 MethodType.fromMethodDescriptorString("()v", null);
@@ -1980,7 +1993,7 @@ public class TestMain {
 
         class TestCaseModuleGetClassLoader extends TestCase {
             public TestCaseModuleGetClassLoader() {
-                super(expectedException, expectedMsg);
+                super(expectedException, expectedMsgPattern);
             }
             @Override public Double apply(Double x) {
                 Object.class.getModule().getClassLoader(); // should fail
@@ -1989,43 +2002,45 @@ public class TestMain {
         }
         result.add(new TestCaseModuleGetClassLoader());    
 
-        class TestCaseModuleLayerDefineModulesWithManyLoaders extends TestCase {
-            public TestCaseModuleLayerDefineModulesWithManyLoaders() {
-                super(expectedException, expectedMsg);
+        class TestCaseModuleLayerDefineModulesWithManyLoadersShouldDenyGetClassLoader extends TestCase {
+            public TestCaseModuleLayerDefineModulesWithManyLoadersShouldDenyGetClassLoader() {
+                super(expectedException, ".*reflection(Get|Create)ClassLoader is not granted.*");
             }
             @Override public Double apply(Double x) {
                 ModuleLayer.defineModulesWithManyLoaders(null, null, null); // should fail
+                // ^ This call could be denied by deny.reflectionGetClassLoader or by deny.reflectionCreateClassLoader
                 return 0.0;
             }
         }
-        result.add(new TestCaseModuleLayerDefineModulesWithManyLoaders());    
+        result.add(new TestCaseModuleLayerDefineModulesWithManyLoadersShouldDenyGetClassLoader());    
 
 
-        class TestCaseModuleLayerDefineModulesWithOneLoader extends TestCase {
-            public TestCaseModuleLayerDefineModulesWithOneLoader() {
-                super(expectedException, expectedMsg);
+        class TestCaseModuleLayerDefineModulesWithOneLoaderShouldDenyGetClassLoader extends TestCase {
+            public TestCaseModuleLayerDefineModulesWithOneLoaderShouldDenyGetClassLoader() {
+                super(expectedException, ".*reflection(Get|Create)ClassLoader is not granted.*");
             }
             @Override public Double apply(Double x) {
                 ModuleLayer.defineModulesWithOneLoader(null, null, null); // should fail
+                // ^ This call could be denied by deny.reflectionGetClassLoader or by deny.reflectionCreateClassLoader
                 return 0.0;
             }
         }
-        result.add(new TestCaseModuleLayerDefineModulesWithOneLoader());    
+        result.add(new TestCaseModuleLayerDefineModulesWithOneLoaderShouldDenyGetClassLoader());    
                 
-        class TestCaseModuleLayerDefineModules extends TestCase {
-            public TestCaseModuleLayerDefineModules() {
-                super(expectedException, expectedMsg);
+        class TestCaseModuleLayerDefineModulesShouldDenyGetClassLoader extends TestCase {
+            public TestCaseModuleLayerDefineModulesShouldDenyGetClassLoader() {
+                super(expectedException, expectedMsgPattern);
             }
             @Override public Double apply(Double x) {
                 ModuleLayer.defineModules(null, null, null); // should fail
                 return 0.0;
             }
         }
-        result.add(new TestCaseModuleLayerDefineModules());    
+        result.add(new TestCaseModuleLayerDefineModulesShouldDenyGetClassLoader());    
 
         class TestCaseProxyGetProxyClassWithNullClassLoader extends TestCase {
             public TestCaseProxyGetProxyClassWithNullClassLoader() {
-                super(expectedException, expectedMsg);
+                super(expectedException, expectedMsgPattern);
             }
             @SuppressWarnings("deprecation")
             @Override public Double apply(Double x) {
@@ -2036,7 +2051,7 @@ public class TestMain {
         result.add(new TestCaseProxyGetProxyClassWithNullClassLoader());    
         class TestCaseProxyNewProxyInstanceWithNullClassLoader extends TestCase {
             public TestCaseProxyNewProxyInstanceWithNullClassLoader() {
-                super(expectedException, expectedMsg);
+                super(expectedException, expectedMsgPattern);
             }
             @Override public Double apply(Double x) {
                 Proxy.newProxyInstance(null, new Class[]{Object.class}, null); // should fail
@@ -2047,7 +2062,7 @@ public class TestMain {
 
         class TestCaseResourceBundleGetBundle2ArgsWithModuleDifferentFromCallerModule extends TestCase {
             public TestCaseResourceBundleGetBundle2ArgsWithModuleDifferentFromCallerModule() {
-                super(expectedException, expectedMsg);
+                super(expectedException, expectedMsgPattern);
             }
             @Override public Double apply(Double x) {
                 java.util.ResourceBundle.getBundle("Any", java.lang.Object.class.getModule());
@@ -2058,7 +2073,7 @@ public class TestMain {
 
         class TestCaseResourceBundleGetBundle3ArgsWithModuleDifferentFromCallerModule extends TestCase {
             public TestCaseResourceBundleGetBundle3ArgsWithModuleDifferentFromCallerModule() {
-                super(expectedException, expectedMsg);
+                super(expectedException, expectedMsgPattern);
             }
             @Override public Double apply(Double x) {
                 java.util.ResourceBundle.getBundle("Any", Locale.getDefault() , java.lang.Object.class.getModule());
@@ -2066,6 +2081,122 @@ public class TestMain {
             }
         }
         result.add(new TestCaseResourceBundleGetBundle3ArgsWithModuleDifferentFromCallerModule());    
+
+        return result;
+    }
+
+    @TestCaseFactory
+    private static List<TestCase> testReflectionCreateClassLoader() {
+        Class<? extends Throwable> expectedException = PermcheckException.class;
+        String expectedMsgPattern = ".*reflectionCreateClassLoader is not granted.*";
+
+        ArrayList<TestCase> result = new ArrayList<>();
+
+
+        class TestCaseClassLoaderConstructorDefaultShouldDenyCreateClassLoader extends TestCase {
+            public TestCaseClassLoaderConstructorDefaultShouldDenyCreateClassLoader() {
+                super(expectedException, expectedMsgPattern);
+            }
+            @SuppressWarnings("resource")
+            @Override public Double apply(Double x) {
+                new URLClassLoader(new URL[0]); // should call ClassLoader() and then fail
+                return 0.0;
+            }
+        }
+        result.add(new TestCaseClassLoaderConstructorDefaultShouldDenyCreateClassLoader());    
+
+        class TestCaseClassLoaderConstructor1ArgShouldDenyCreateClassLoader extends TestCase {
+            public TestCaseClassLoaderConstructor1ArgShouldDenyCreateClassLoader() {
+                super(expectedException, expectedMsgPattern);
+            }
+            @SuppressWarnings("resource")
+            @Override public Double apply(Double x) {
+                new URLClassLoader(new URL[0], this.getClass().getClassLoader()); 
+                // ^ should call ClassLoader(ClassLoader) and then fail
+                return 0.0;
+            }
+        }
+        result.add(new TestCaseClassLoaderConstructor1ArgShouldDenyCreateClassLoader());    
+
+        class TestCaseClassLoaderConstructor2ArgShouldDenyCreateClassLoader extends TestCase {
+            public TestCaseClassLoaderConstructor2ArgShouldDenyCreateClassLoader() {
+                super(expectedException, expectedMsgPattern);
+            }
+            @SuppressWarnings("resource")
+            @Override public Double apply(Double x) {
+                new URLClassLoader("dummyname", new URL[0], this.getClass().getClassLoader()); 
+                // ^ should call ClassLoader(String, ClassLoader) and then fail
+                return 0.0;
+            }
+        }
+        result.add(new TestCaseClassLoaderConstructor2ArgShouldDenyCreateClassLoader());
+
+        class TestCaseModuleLayerDefineModulesWithManyLoadersShouldDenyCreateClassLoader extends TestCase {
+            public TestCaseModuleLayerDefineModulesWithManyLoadersShouldDenyCreateClassLoader() {
+                super(expectedException, ".*reflection(Get|Create)ClassLoader is not granted.*");
+            }
+            @Override public Double apply(Double x) {
+                ModuleLayer.defineModulesWithManyLoaders(null, null, null); // should fail
+                // ^ This call could be denied by deny.reflectionGetClassLoader or by deny.reflectionCreateClassLoader
+                return 0.0;
+            }
+        }
+        result.add(new TestCaseModuleLayerDefineModulesWithManyLoadersShouldDenyCreateClassLoader());    
+
+
+        class TestCaseModuleLayerDefineModulesWithOneLoaderShouldDenyCreateClassLoader extends TestCase {
+            public TestCaseModuleLayerDefineModulesWithOneLoaderShouldDenyCreateClassLoader() {
+                super(expectedException, ".*reflection(Get|Create)ClassLoader is not granted.*");
+            }
+            @Override public Double apply(Double x) {
+                ModuleLayer.defineModulesWithOneLoader(null, null, null); // should fail
+                // ^ This call could be denied by deny.reflectionGetClassLoader or by deny.reflectionCreateClassLoader
+                return 0.0;
+            }
+        }
+        result.add(new TestCaseModuleLayerDefineModulesWithOneLoaderShouldDenyCreateClassLoader());    
+                
+        return result;
+    }
+
+    @TestCaseFactory
+    private static List<TestCase> testReflectionAccessClassInNonExportedBootLayerPackage() {
+        Class<? extends Throwable> expectedException = PermcheckException.class;
+        String expectedMsgPattern = ".*reflectionAccessClassInNonExportedBootLayerPackage is not granted.*";
+
+        ArrayList<TestCase> result = new ArrayList<>();
+
+        class TestCaseAppClassLoaderLoadClassShouldDenyAccessClassInNonExportedBootLayerPackage extends TestCase {
+            public TestCaseAppClassLoaderLoadClassShouldDenyAccessClassInNonExportedBootLayerPackage() {
+                super(expectedException, expectedMsgPattern);
+            }
+            @Override public Double apply(Double x) {
+                try {
+                    ClassLoader.getSystemClassLoader().loadClass("sun.misc.Unsafe"); // should fail
+                } catch (ClassNotFoundException e) {
+                    // shouldn't happen
+                    throw new AssertionError("Internal error in TestCase", e);
+                }
+                return 0.0;
+            }
+        }
+        result.add(new TestCaseAppClassLoaderLoadClassShouldDenyAccessClassInNonExportedBootLayerPackage());
+
+        class TestCaseInternalClassLoaderLoadClassShouldDenyAccessClassInNonExportedBootLayerPackage extends TestCase {
+            public TestCaseInternalClassLoaderLoadClassShouldDenyAccessClassInNonExportedBootLayerPackage() {
+                super(expectedException, expectedMsgPattern);
+            }
+            @Override public Double apply(Double x) {
+                try {
+                    Util.getJdkInternalLoader().loadClass("sun.misc.Unsafe"); // should fail
+                } catch (ClassNotFoundException e) {
+                    // shouldn't happen
+                    throw new AssertionError("Internal error in TestCase", e);
+                }
+                return 0.0;
+            }
+        }
+        result.add(new TestCaseInternalClassLoaderLoadClassShouldDenyAccessClassInNonExportedBootLayerPackage());
 
         return result;
     }
@@ -2129,7 +2260,7 @@ public class TestMain {
 
         class TestCaseFileCanExecuteDenied extends TestCase {
             public TestCaseFileCanExecuteDenied() {
-                super(expectedException, "file execute is not granted");
+                super(expectedException, ".*file execute is not granted.*");
             }
             @Override public Double apply(Double x) {
                 root.resolve("r").resolve("file").toFile().canExecute();
@@ -2140,7 +2271,7 @@ public class TestMain {
 
         class TestCaseFilesIsExecutableDenied extends TestCase {
             public TestCaseFilesIsExecutableDenied() {
-                super(expectedException, "file execute is not granted");
+                super(expectedException, ".*file execute is not granted.*");
             }
             @Override public Double apply(Double x) {
                 Files.isExecutable(root.resolve("r").resolve("file"));
@@ -2159,7 +2290,7 @@ public class TestMain {
 
         class TestCaseProcessBuilderStartExecuteDenied extends TestCase {
             public TestCaseProcessBuilderStartExecuteDenied() {
-                super(expectedException, "file execute is not granted");
+                super(expectedException, ".*file execute is not granted.*");
             }
             @Override public Double apply(Double x) {
                 try {
@@ -2175,7 +2306,7 @@ public class TestMain {
 
         class TestCaseProcessBuilderStartReadDenied extends TestCase {
             public TestCaseProcessBuilderStartReadDenied() {
-                super(expectedException, "file read is not granted");
+                super(expectedException, ".*file read is not granted.*");
             }
             @Override public Double apply(Double x) {
                 try {
@@ -2291,7 +2422,7 @@ public class TestMain {
         class TestCaseFileInvokeMethodReadDenied extends TestCase {
             private FileMethod method;
             public TestCaseFileInvokeMethodReadDenied(FileMethod method) {
-                super(expectedException, "file read is not granted", method.toString());
+                super(expectedException, ".*file read is not granted.*", method.toString());
                 this.method = method;
             }
             @Override public Double apply(Double x) {
@@ -2376,7 +2507,7 @@ public class TestMain {
         class TestCaseFilesInvokeMethodReadDenied extends TestCase {
             private FilesMethod method;
             public TestCaseFilesInvokeMethodReadDenied(FilesMethod method) {
-                super(expectedException, "file read is not granted", method.toString());
+                super(expectedException, ".*file read is not granted.*", method.toString());
                 this.method = method;
             }
             @Override public Double apply(Double x) {
@@ -2416,7 +2547,7 @@ public class TestMain {
 
         class TestCaseFilesReadAttributesDenied extends TestCase {
             public TestCaseFilesReadAttributesDenied() {
-                super(expectedException, "file read is not granted");
+                super(expectedException, ".*file read is not granted.*");
             }
             @Override public Double apply(Double x) {
                 Path p = root.resolve("w").resolve("file");
@@ -2447,7 +2578,7 @@ public class TestMain {
 
         class TestCasePathRegisterDenied extends TestCase {
             public TestCasePathRegisterDenied() {
-                super(expectedException, "file read is not granted");
+                super(expectedException, ".*file read is not granted.*");
             }
             @Override public Double apply(Double x) {
                 Path p = root.resolve("w");
@@ -2478,7 +2609,7 @@ public class TestMain {
 
         class TestCaseFileInputStreamConstructorFileDenied extends TestCase {
             public TestCaseFileInputStreamConstructorFileDenied() {
-                super(expectedException, "file read is not granted");
+                super(expectedException, ".*file read is not granted.*");
             }
             @Override public Double apply(Double x) {
                 Path p = root.resolve("w").resolve("file");
@@ -2494,7 +2625,7 @@ public class TestMain {
 
         class TestCaseFileInputStreamConstructorStringDenied extends TestCase {
             public TestCaseFileInputStreamConstructorStringDenied() {
-                super(expectedException, "file read is not granted");
+                super(expectedException, ".*file read is not granted.*");
             }
             @Override public Double apply(Double x) {
                 Path p = root.resolve("w").resolve("file");
@@ -2557,7 +2688,7 @@ public class TestMain {
         class TestCaseZipFileConstructorDenied extends TestCase {
             private ZipFileConstructor zfc;
             public TestCaseZipFileConstructorDenied(ZipFileConstructor zfc) {
-                super(expectedException, "file read is not granted", zfc.toString());
+                super(expectedException, ".*file read is not granted.*", zfc.toString());
                 this.zfc = zfc;
             }
             @Override public Double apply(Double x) {
@@ -2581,7 +2712,7 @@ public class TestMain {
 
         class TestCaseZipFileConstructorModeDeleteDenied extends TestCase {
             public TestCaseZipFileConstructorModeDeleteDenied() {
-                super(expectedException, "file delete is not granted");
+                super(expectedException, ".*file delete is not granted.*");
             }
             @Override public Double apply(Double x) {
                 File f = root.resolve("r").resolve("file.zip").toFile();
@@ -2638,7 +2769,7 @@ public class TestMain {
 
         class TestCaseDesktopMoveToTrashDenied extends TestCase {
             public TestCaseDesktopMoveToTrashDenied() {
-                super(expectedException, "file delete is not granted");
+                super(expectedException, ".*file delete is not granted.*");
             }
             @Override public Double apply(Double x) {
                 if (Desktop.isDesktopSupported()) {
@@ -2652,7 +2783,7 @@ public class TestMain {
                 } else {
                     // Cannot test this on this platform.
                     setExpectedException(null);
-                    setExpectedMsg(null);
+                    setExpectedMsgPattern(null);
                     return Math.sqrt(x);
                 }
                 return 0.0;
@@ -2675,7 +2806,7 @@ public class TestMain {
 
         class TestCaseFileMkdirsReadDenied extends TestCase {
             public TestCaseFileMkdirsReadDenied() {
-                super(expectedException, "file read is not granted");
+                super(expectedException, ".*file read is not granted.*");
             }
             @Override public Double apply(Double x) {
                 Path p = root.resolve("w").resolve("sub").resolve("subsub");
@@ -2691,7 +2822,7 @@ public class TestMain {
 
         class TestCaseFileMkdirsWriteDenied extends TestCase {
             public TestCaseFileMkdirsWriteDenied() {
-                super(expectedException, "file write is not granted");
+                super(expectedException, ".*file write is not granted.*");
             }
             @Override public Double apply(Double x) {
                 Path p = root.resolve("r").resolve("sub").resolve("subsub");
@@ -2721,7 +2852,7 @@ public class TestMain {
 
         class TestCaseFilesCreateDirectoriesReadDenied extends TestCase {
             public TestCaseFilesCreateDirectoriesReadDenied() {
-                super(expectedException, "file read is not granted");
+                super(expectedException, ".*file read is not granted.*");
             }
             @Override public Double apply(Double x) {
                 Path p = root.resolve("w").resolve("sub").resolve("subsub");
@@ -2737,7 +2868,7 @@ public class TestMain {
 
         class TestCaseFilesCreateDirectoriesWriteDenied extends TestCase {
             public TestCaseFilesCreateDirectoriesWriteDenied() {
-                super(expectedException, "file write is not granted");
+                super(expectedException, ".*file write is not granted.*");
             }
             @Override public Double apply(Double x) {
                 Path p = root.resolve("r").resolve("sub").resolve("subsub");
@@ -2767,7 +2898,7 @@ public class TestMain {
 
         class TestCaseFilesCopyReadDenied extends TestCase {
             public TestCaseFilesCopyReadDenied() {
-                super(expectedException, "file read is not granted");
+                super(expectedException, ".*file read is not granted.*");
             }
             @Override public Double apply(Double x) {
                 Path from = root.resolve("w").resolve("file");
@@ -2784,7 +2915,7 @@ public class TestMain {
 
         class TestCaseFilesCopyWriteDenied extends TestCase {
             public TestCaseFilesCopyWriteDenied() {
-                super(expectedException, "file write is not granted");
+                super(expectedException, ".*file write is not granted.*");
             }
             @Override public Double apply(Double x) {
                 Path from = root.resolve("r").resolve("file");
@@ -2847,7 +2978,7 @@ public class TestMain {
 
         class TestCaseRandomAccessFileConstructorReadDenied extends TestCaseRandomAccessFileConstructor {
             public TestCaseRandomAccessFileConstructorReadDenied() {
-                super(expectedException, "file read is not granted");
+                super(expectedException, ".*file read is not granted.*");
             }
             @Override public Double apply(Double x) {
                 File f = root.resolve("w").resolve("file").toFile();
@@ -2864,7 +2995,7 @@ public class TestMain {
 
         class TestCaseRandomAccessFileConstructorReadWriteDenied extends TestCaseRandomAccessFileConstructor {
             public TestCaseRandomAccessFileConstructorReadWriteDenied() {
-                super(expectedException, "file write is not granted");
+                super(expectedException, ".*file write is not granted.*");
             }
             @Override public Double apply(Double x) {
                 File f = root.resolve("r").resolve("file.raf").toFile();
@@ -2898,7 +3029,7 @@ public class TestMain {
 
         class TestCaseFileOutputStreamConstructorFileDenied extends TestCase {
             public TestCaseFileOutputStreamConstructorFileDenied() {
-                super(expectedException, "file write is not granted");
+                super(expectedException, ".*file write is not granted.*");
             }
             @Override public Double apply(Double x) {
                 Path p = root.resolve("r").resolve("file");
@@ -2914,7 +3045,7 @@ public class TestMain {
 
         class TestCaseFileOutputStreamConstructorFileBooleanDenied extends TestCase {
             public TestCaseFileOutputStreamConstructorFileBooleanDenied() {
-                super(expectedException, "file write is not granted");
+                super(expectedException, ".*file write is not granted.*");
             }
             @Override public Double apply(Double x) {
                 Path p = root.resolve("r").resolve("file");
@@ -2930,7 +3061,7 @@ public class TestMain {
 
         class TestCaseFileOutputStreamConstructorStringDenied extends TestCase {
             public TestCaseFileOutputStreamConstructorStringDenied() {
-                super(expectedException, "file write is not granted");
+                super(expectedException, ".*file write is not granted.*");
             }
             @Override public Double apply(Double x) {
                 Path p = root.resolve("r").resolve("file");
@@ -2946,7 +3077,7 @@ public class TestMain {
 
         class TestCaseFileOutputStreamConstructorStringBooleanDenied extends TestCase {
             public TestCaseFileOutputStreamConstructorStringBooleanDenied() {
-                super(expectedException, "file write is not granted");
+                super(expectedException, ".*file write is not granted.*");
             }
             @Override public Double apply(Double x) {
                 Path p = root.resolve("r").resolve("file");
@@ -2977,7 +3108,7 @@ public class TestMain {
         class TestCaseFileInvokeMethodWriteDenied extends TestCase {
             private FileMethod method;
             public TestCaseFileInvokeMethodWriteDenied(FileMethod method) {
-                super(expectedException, "file write is not granted", method.toString());
+                super(expectedException, ".*file write is not granted.*", method.toString());
                 this.method = method;
             }
             @Override public Double apply(Double x) {
@@ -3051,7 +3182,7 @@ public class TestMain {
         class TestCaseFilesInvokeMethodWriteDenied extends TestCase {
             private FilesMethod method;
             public TestCaseFilesInvokeMethodWriteDenied(FilesMethod method) {
-                super(expectedException, "file write is not granted", method.toString());
+                super(expectedException, ".*file write is not granted.*", method.toString());
                 this.method = method;
             }
             @Override public Double apply(Double x) {
@@ -3091,7 +3222,7 @@ public class TestMain {
 
         class TestCaseFilesWriteAttributesDenied extends TestCase {
             public TestCaseFilesWriteAttributesDenied() {
-                super(expectedException, "file write is not granted");
+                super(expectedException, ".*file write is not granted.*");
             }
             @Override public Double apply(Double x) {
                 Path p = root.resolve("r").resolve("file");
@@ -3108,7 +3239,7 @@ public class TestMain {
 
         class TestCaseFileRenameWriteSrcDenied extends TestCase {
             public TestCaseFileRenameWriteSrcDenied() {
-                super(expectedException, "file write is not granted");
+                super(expectedException, ".*file write is not granted.*");
             }
             @Override public Double apply(Double x) {
                 Path from = root.resolve("r").resolve("file2");
@@ -3125,7 +3256,7 @@ public class TestMain {
 
         class TestCaseFileRenameWriteDestDenied extends TestCase {
             public TestCaseFileRenameWriteDestDenied() {
-                super(expectedException, "file write is not granted");
+                super(expectedException, ".*file write is not granted.*");
             }
             @Override public Double apply(Double x) {
                 Path from = root.resolve("w").resolve("file2");
@@ -3157,7 +3288,7 @@ public class TestMain {
 
         class TestCaseFilesMoveWriteSrcDenied extends TestCase {
             public TestCaseFilesMoveWriteSrcDenied() {
-                super(expectedException, "file write is not granted");
+                super(expectedException, ".*file write is not granted.*");
             }
             @Override public Double apply(Double x) {
                 Path from = root.resolve("r").resolve("file3");
@@ -3174,7 +3305,7 @@ public class TestMain {
 
         class TestCaseFilesMoveWriteDestDenied extends TestCase {
             public TestCaseFilesMoveWriteDestDenied() {
-                super(expectedException, "file write is not granted");
+                super(expectedException, ".*file write is not granted.*");
             }
             @Override public Double apply(Double x) {
                 Path from = root.resolve("w").resolve("file3");
@@ -3205,7 +3336,7 @@ public class TestMain {
 
         class TestCaseFileCreateTempFileDenied extends TestCase {
             public TestCaseFileCreateTempFileDenied() {
-                super(expectedException, "file write is not granted");
+                super(expectedException, ".*file write is not granted.*");
             }
             @Override public Double apply(Double x) {
                 Path p = root.resolve("r");
@@ -3239,7 +3370,7 @@ public class TestMain {
         class TestCaseFileInvokeMethodDeleteDenied extends TestCase {
             private FileMethod method;
             public TestCaseFileInvokeMethodDeleteDenied(FileMethod method) {
-                super(expectedException, "file delete is not granted", method.toString());
+                super(expectedException, ".*file delete is not granted.*", method.toString());
                 this.method = method;
             }
             @Override public Double apply(Double x) {
@@ -3310,7 +3441,7 @@ public class TestMain {
         class TestCaseFilesInvokeMethodDeleteDenied extends TestCase {
             private FilesMethod method;
             public TestCaseFilesInvokeMethodDeleteDenied(FilesMethod method) {
-                super(expectedException, "file delete is not granted", method.toString());
+                super(expectedException, ".*file delete is not granted.*", method.toString());
                 this.method = method;
             }
             @Override public Double apply(Double x) {
@@ -3347,7 +3478,7 @@ public class TestMain {
 
         class TestCaseSystemGetPropertyDenied extends TestCase {
             public TestCaseSystemGetPropertyDenied() {
-                super(expectedException, "property read is not granted");
+                super(expectedException, ".*property read is not granted.*");
             }
             @Override public Double apply(Double x) {
                 System.getProperty("allowed.to.write.a"); // denied
@@ -3358,7 +3489,7 @@ public class TestMain {
 
         class TestCaseSystemGetPropertyWithDefaultDenied extends TestCase {
             public TestCaseSystemGetPropertyWithDefaultDenied() {
-                super(expectedException, "property read is not granted");
+                super(expectedException, ".*property read is not granted.*");
             }
             @Override public Double apply(Double x) {
                 System.getProperty("allowed.to.write.a", "value"); // denied
@@ -3379,7 +3510,7 @@ public class TestMain {
 
         class TestCaseSystemGetPropertiesDenied extends TestCase {
             public TestCaseSystemGetPropertiesDenied() {
-                super(expectedException, "is not granted for '*'");
+                super(expectedException, ".*is not granted for '*'.*");
             }
             @Override public Double apply(Double x) {
                 System.getProperties();
@@ -3390,7 +3521,7 @@ public class TestMain {
 
         class TestCaseSystemSetPropertiesDenied extends TestCase {
             public TestCaseSystemSetPropertiesDenied() {
-                super(expectedException, "is not granted for '*'");
+                super(expectedException, ".*is not granted for '*'.*");
             }
             @Override public Double apply(Double x) {
                 System.setProperties(new Properties());
@@ -3401,7 +3532,7 @@ public class TestMain {
 
         class TestCaseSystemSetPropertyDenied extends TestCase {
             public TestCaseSystemSetPropertyDenied() {
-                super(expectedException, "property write is not granted");
+                super(expectedException, ".*property write is not granted.*");
             }
             @Override public Double apply(Double x) {
                 System.setProperty("allowed.to.read.a", "42"); // denied
@@ -3420,7 +3551,7 @@ public class TestMain {
 
         class TestCaseSystemClearPropertyDenied extends TestCase {
             public TestCaseSystemClearPropertyDenied() {
-                super(expectedException, "property write is not granted");
+                super(expectedException, ".*property write is not granted.*");
             }
             @Override public Double apply(Double x) {
                 System.clearProperty("allowed.to.read.a"); // denied
@@ -3439,7 +3570,7 @@ public class TestMain {
 
         class TestCaseTimeZoneSetDefaultDenied extends TestCase {
             public TestCaseTimeZoneSetDefaultDenied() {
-                super(expectedException, "property write is not granted for 'user.timezone'");
+                super(expectedException, ".*property write is not granted for 'user.timezone'.*");
             }
             @Override public Double apply(Double x) {
                 TimeZone.setDefault(TimeZone.getTimeZone("America/Los_Angeles"));
@@ -3450,7 +3581,7 @@ public class TestMain {
 
         class TestCaseLocaleSetDefaultDenied extends TestCase {
             public TestCaseLocaleSetDefaultDenied() {
-                super(expectedException, "property write is not granted for 'user.language'");
+                super(expectedException, ".*property write is not granted for 'user.language'.*");
             }
             @Override public Double apply(Double x) {
                 Locale.setDefault(Locale.GERMANY);
@@ -3461,7 +3592,7 @@ public class TestMain {
 
         class TestCaseLocaleSetDefaultForCategoryDenied extends TestCase {
             public TestCaseLocaleSetDefaultForCategoryDenied() {
-                super(expectedException, "property write is not granted for 'user.language'");
+                super(expectedException, ".*property write is not granted for 'user.language'.*");
             }
             @Override public Double apply(Double x) {
                 Locale.setDefault(Locale.Category.DISPLAY, Locale.GERMANY);
@@ -3480,7 +3611,7 @@ public class TestMain {
 
         class TestCaseSystemGetenvDenied extends TestCase {
             public TestCaseSystemGetenvDenied() {
-                super(expectedException, "env is not granted for 'PATH'");
+                super(expectedException, ".*env is not granted for 'PATH'.*");
             }
             @Override public Double apply(Double x) {
                 System.getenv("PATH"); // denied
@@ -3499,7 +3630,7 @@ public class TestMain {
 
         class TestCaseSystemGetenvAllDenied extends TestCase {
             public TestCaseSystemGetenvAllDenied() {
-                super(expectedException, "env is not granted for '*'");
+                super(expectedException, ".*env is not granted for '*'.*");
             }
             @Override public Double apply(Double x) {
                 System.getenv(); // denied
@@ -3510,7 +3641,7 @@ public class TestMain {
 
         class TestCaseProcessBuilderEnvironmentAllDenied extends TestCase {
             public TestCaseProcessBuilderEnvironmentAllDenied() {
-                super(expectedException, "env is not granted for '*'");
+                super(expectedException, ".*env is not granted for '*'.*");
             }
             @Override public Double apply(Double x) {
                 new ProcessBuilder("echo").environment();

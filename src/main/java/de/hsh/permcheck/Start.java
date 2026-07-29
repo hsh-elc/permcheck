@@ -145,6 +145,10 @@ public class Start {
                 "DenyReflectionGetClassLoader$DenyOnMethodTypeFromMethodDescriptorString",
                 "DenyReflectionGetClassLoader$DenySpecifiedLoaderIsNullAndCallerLoaderIsNotNull",
                 "DenyReflectionGetClassLoader$DenyCallerModuleDifferentFromSpecifiedModule",
+                "DenyReflectionCreateClassLoader",
+                "DenyReflectionAccessClassInNonExportedBootLayerPackage",
+                "DenyReflectionAccessClassInNonExportedBootLayerPackage$DenyFirstArgOnNonExportedBootLayerPackageInsert",
+                //"DenyReflectionAccessClassInNonExportedBootLayerPackage$DenyResultClassArrayOnNonBootToBootClassLoaderAndNonExportedBootLayerPackageInsert",
 
                 "AbstractPermitCheck",
                 "BasicPermitCheck",
