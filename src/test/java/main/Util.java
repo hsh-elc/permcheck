@@ -5,14 +5,21 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.lang.module.Configuration;
+import java.lang.module.ModuleFinder;
 import java.net.URI;
+import java.net.URISyntaxException;
+import java.net.URL;
 import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Set;
+
 import javax.tools.DiagnosticCollector;
 import javax.tools.FileObject;
 import javax.tools.ForwardingJavaFileManager;
@@ -22,11 +29,14 @@ import javax.tools.JavaFileObject;
 import javax.tools.SimpleJavaFileObject;
 import javax.tools.StandardJavaFileManager;
 
+import org.junit.runner.JUnitCore;
+
 class Util {
 
     private static HashMap<String,String> source;
     private static HashMap<String,byte[]> byteCode;
     private static ClassLoader memoryClassloader;
+    private static ClassLoader jdkInternalLoader;
 
     static {
         source = new HashMap<>();
@@ -96,10 +106,44 @@ class Util {
                 return defineClass(name, b, 0, b.length);
             }
         };
+
+        try {
+            // Pfad zu junit jar Datei:
+            URL url = JUnitCore.class.getProtectionDomain().getCodeSource().getLocation();
+            Path modulePath = Paths.get(url.toURI());
+            ModuleFinder finder = ModuleFinder.of(modulePath);
+
+            // Den Namen des zu ladenden Moduls definieren
+            String moduleName = "junit";
+
+            // Konfiguration auf Basis des Boot-Layers als Eltern-Layer erstellen
+            ModuleLayer parentLayer = ModuleLayer.boot();
+            Configuration configuration = parentLayer.configuration()
+                    .resolve(finder, ModuleFinder.of(), Set.of(moduleName));
+
+            // Neuen Layer definieren und dabei einen gemeinsamen Loader erzwingen.
+            // HIER wird intern "jdk.internal.loader.Loader" instanziiert und genutzt.
+            ClassLoader parentLoader = ClassLoader.getSystemClassLoader();
+            ModuleLayer newLayer = parentLayer.defineModulesWithOneLoader(configuration, parentLoader);
+
+            // Den ClassLoader für das spezifische Modul abrufen und überprüfen
+            jdkInternalLoader = newLayer.findLoader(moduleName);
+
+            String loaderType = jdkInternalLoader.getClass().getName();
+            if (!"jdk.internal.loader.Loader".equals(loaderType)) {
+                throw new Error("Unexpected module loader type: "+loaderType);
+            }
+        } catch (URISyntaxException e) {
+            throw new Error("Internal error when setting up test harness", e);
+        }
     }
 
     public static ClassLoader getMemoryClassLoader() {
         return memoryClassloader;
+    }
+
+    public static ClassLoader getJdkInternalLoader() {
+        return jdkInternalLoader;
     }
 
     public static void deleteRecursively(Path directory) throws IOException {
