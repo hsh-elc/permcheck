@@ -56,7 +56,7 @@ mvn clean package -DskipTests || exit 1
 $JAVA_HOME_17_EXEC \
   -Djava.security.manager -Djava.security.policy==security.policy \
   -XX:-EnableDynamicAgentLoading -Xshare:off -ea \
-  -Dnet.bytebuddy.safe=true -javaagent:lib/byte-buddy-agent-1.17.5.jar \
+  -Dnet.bytebuddy.safe=true -javaagent:lib/byte-buddy-agent-1.17.7.jar \
   --add-reads java.base=ALL-UNNAMED \
   -cp target/permcheck-${release}.jar${pathsep}target/permcheck-${release}-tests.jar${pathsep}lib/* \
   main.TestMain \
@@ -68,7 +68,7 @@ $JAVA_HOME_17_EXEC \
 $JAVA_HOME_17_EXEC \
   -Djava.security.manager -Djava.security.policy==security.policy \
   -XX:-EnableDynamicAgentLoading -Xshare:off -ea \
-  -Dnet.bytebuddy.safe=true -javaagent:lib/byte-buddy-agent-1.17.5.jar \
+  -Dnet.bytebuddy.safe=true -javaagent:lib/byte-buddy-agent-1.17.7.jar \
   --add-reads java.base=ALL-UNNAMED \
   -cp target/classes${pathsep}target/test-classes${pathsep}lib/* \
   main.TestMain \
@@ -80,7 +80,7 @@ $JAVA_HOME_17_EXEC \
 $JAVA_HOME_25_EXEC \
   -XX:-EnableDynamicAgentLoading -Xshare:off -ea \
   --sun-misc-unsafe-memory-access=deny \
-  -Dnet.bytebuddy.safe=true -javaagent:lib/byte-buddy-agent-1.17.5.jar \
+  -Dnet.bytebuddy.safe=true -javaagent:lib/byte-buddy-agent-1.17.7.jar \
   --add-reads java.base=ALL-UNNAMED \
   -cp target/permcheck-${release}.jar${pathsep}target/permcheck-${release}-tests.jar${pathsep}lib/* \
   main.TestMain \

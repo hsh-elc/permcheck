@@ -156,9 +156,9 @@ public class TestMain {
         System.out.println("Usage:");
         System.out.println("01 java \\");
         System.out.println("02    -Djava.security.manager -Djava.security.policy==security.policy \\");
-        System.out.println("03    -XX:-EnableDynamicAgentLoading -Xshare:off -Dnet.bytebuddy.safe=true -ea -javaagent:lib/byte-buddy-agent-1.17.5.jar \\");
+        System.out.println("03    -XX:-EnableDynamicAgentLoading -Xshare:off -Dnet.bytebuddy.safe=true -ea -javaagent:lib/byte-buddy-agent-1.17.7.jar \\");
         System.out.println("04    --add-reads java.base=ALL-UNNAMED \\");
-        System.out.println("05    -cp byte-buddy-1.17.5.jar;byte-buddy-agent-1.17.5.jar;junit-4.12.jar;hamcrest-core-1.3.jar;permcheck-0.0.1jar;permcheck-0.0.1-tests.jar \\");
+        System.out.println("05    -cp byte-buddy-1.17.7.jar;byte-buddy-agent-1.17.7.jar;junit-4.12.jar;hamcrest-core-1.3.jar;permcheck-0.0.1jar;permcheck-0.0.1-tests.jar \\");
         System.out.println("06    main.TestMain \\");
         System.out.println("07    --permcheck.policy permcheck.policy \\");
         System.out.println("08    --permcheck.tmpfolder path/to/tmpfolderforbootstrapinjection");
