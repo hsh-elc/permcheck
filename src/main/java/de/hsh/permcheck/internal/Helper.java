@@ -3,6 +3,7 @@ package de.hsh.permcheck.internal;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.lang.StackWalker.StackFrame;
+import java.lang.reflect.Method;
 import java.util.Optional;
 import java.util.Scanner;
 
@@ -86,6 +87,16 @@ public class Helper {
             str = str.substring(0, i0) + propVal + str.substring(i1+2);
         }
         return str;
+    }
+
+    public static Method getDeclaredMethodOfClassOrSuperClass(Class<?> clazz, String name, Class<?> ... parameterTypes) throws NoSuchMethodException {
+        try {
+            return clazz.getDeclaredMethod(name, parameterTypes);
+        } catch (NoSuchMethodException e) {
+            Class<?> superClazz = clazz.getSuperclass();
+            if (superClazz == null) throw new NoSuchMethodException("No superclass found for '"+clazz+"'");
+            return superClazz.getDeclaredMethod(name, parameterTypes);
+        }
     }
 
 }

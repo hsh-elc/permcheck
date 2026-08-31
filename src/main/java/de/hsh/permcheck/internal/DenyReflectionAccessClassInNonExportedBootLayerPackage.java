@@ -3,6 +3,7 @@ package de.hsh.permcheck.internal;
 
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
+import java.lang.reflect.Method;
 
 public class DenyReflectionAccessClassInNonExportedBootLayerPackage extends AbstractDenyCheck {
 
@@ -14,8 +15,11 @@ public class DenyReflectionAccessClassInNonExportedBootLayerPackage extends Abst
     protected void registerImpl(Registry registry) throws Exception {
         ClassLoader appClassLoader = ClassLoader.getSystemClassLoader();
         Class<?> appClassLoaderClass = appClassLoader.getClass();
+
         registry.put(
-            appClassLoaderClass.getDeclaredMethod("loadClass", String.class, boolean.class),
+            // In Java version 24 (and maybe some version before), the loadClass method was eliminated from AppCLassLoader.
+            // So we take the method of the superclass BuiltinClassLoader:
+            Helper.getDeclaredMethodOfClassOrSuperClass(appClassLoaderClass, "loadClass", String.class, boolean.class),
             denyFirstArgOnNonExportedBootLayerPackage() );
 
         registry.put(

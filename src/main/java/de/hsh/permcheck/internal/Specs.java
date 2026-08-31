@@ -181,7 +181,7 @@ public class Specs {
             try {
                 c.register(mySpecs.registry);
             } catch (Exception e) {
-                throw new Error("Internal error in permcheck registration of '" + c.getCheckName() + "'");
+                throw new Error("Internal error in permcheck registration of '" + c.getCheckName() + "'", e);
             }
         }
     }       
