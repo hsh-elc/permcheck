@@ -2,6 +2,8 @@ package de.hsh.permcheck.internal;
 import java.lang.invoke.MethodType;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Executable;
+import java.util.Arrays;
+import java.util.stream.Stream;
 
 public record Hook(Class<?> originClazz, Object target, Executable originExecutable, Object[] args) {
 
@@ -37,7 +39,35 @@ public record Hook(Class<?> originClazz, Object target, Executable originExecuta
         if (clazz.equals(String.class)) return "\"" + arg + "\"";
         if (clazz.equals(Class.class)) return ((Class<?>)arg).getName()+".class";
         if (clazz.isPrimitive()) return String.valueOf(arg);
-        return clazz.getName() + "(" + String.valueOf(arg) + ")";
+        if (clazz.isArray()) {
+            String text = null;
+            if (arg instanceof int[] array) {
+                text = Arrays.toString(array);
+            } else if (arg instanceof long[] array) {
+                text = Arrays.toString(array);
+            } else if (arg instanceof float[] array) {
+                text = Arrays.toString(array);
+            } else if (arg instanceof double[] array) {
+                text = Arrays.toString(array);
+            } else if (arg instanceof short[] array) {
+                text = Arrays.toString(array);
+            } else if (arg instanceof byte[] array) {
+                text = Arrays.toString(array);
+            } else if (arg instanceof char[] array) {
+                text = Arrays.toString(array);
+            } else if (arg instanceof Class[] array) {
+                text = Arrays.toString(Stream.of(array).map(c -> c.getName()+".class").toArray());
+            } else if (arg instanceof Object[] array) {
+                text = Arrays.toString(array);
+            } 
+            if (text != null) {
+                Class<?> ct = clazz.getComponentType();
+                return "arg of array type '" + ct.getName() + "[]' with value " + text + "'";
+            } else {
+                // do nothing. Fall through.
+            }
+        }
+        return "arg of type '" + clazz.getName() + "' with value '" + String.valueOf(arg) + "'";
     }
 
     public String getStringFromFirstArg() {
