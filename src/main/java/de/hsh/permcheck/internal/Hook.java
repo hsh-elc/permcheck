@@ -35,6 +35,7 @@ public record Hook(Class<?> originClazz, Object target, Executable originExecuta
         if (clazz.equals(char.class)) return "'" + arg + "'";
         if (clazz.equals(Character.class)) return "'" + arg + "'";
         if (clazz.equals(String.class)) return "\"" + arg + "\"";
+        if (clazz.equals(Class.class)) return ((Class<?>)arg).getName()+".class";
         if (clazz.isPrimitive()) return String.valueOf(arg);
         return clazz.getName() + "(" + String.valueOf(arg) + ")";
     }
