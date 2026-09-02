@@ -22,12 +22,54 @@
             <plugin>
                 <artifactId>maven-compiler-plugin</artifactId>
                 <version>3.8.1</version>
+                <!-- Global configuration: Applies as a baseline to ALL execution phases (compile AND testCompile) -->
                 <configuration>
                     <compilerArgs>
                         <arg>-Xlint:all</arg>
                     </compilerArgs>
-                    <release>17</release>
+					<!-- Using -source/-target instead of <release>17</release>, otherwise 
+					     add-exports argument below is rejected by javac -->
+					<source>17</source>
+					<target>17</target>
                 </configuration>
+				<executions>
+					<!-- 
+						WHY ARE <executions> NEEDED HERE?
+						
+						The maven-compiler-plugin does not provide a dedicated parameter like <testCompilerArgs>.
+						To pass compiler flags (such as add-exports) EXCLUSIVELY when compiling test classes,
+						without polluting the main build step (src/main), you must override the plugin's default 
+						test execution phase.
+
+						By targeting the built-in execution ID 'default-testCompile', Maven intercepts the standard
+						lifecycle phase and applies/merges this specific <configuration> during 'testCompile'.
+
+						References & Documentation:
+						- Configuring Plugin Executions & Standard IDs:
+						  https://maven.apache.org/guides/mini/guide-configuring-plugins.html#Using_the_executions_Tag
+						- Plugin Goal Reference (testCompile):
+						  https://maven.apache.org/plugins/maven-compiler-plugin/testCompile-mojo.html
+						- Maven Default Lifecycle Bindings ('default-testCompile'):
+						  https://maven.apache.org/ref/current/maven-core/default-bindings.html
+					-->
+					<execution>
+						<!-- Exact ID of Maven's built-in execution step for test compilation -->
+						<id>default-testCompile</id>
+						<phase>test-compile</phase>
+						<goals>
+							<goal>testCompile</goal>
+						</goals>
+						<configuration>
+                            <compilerArgs>
+								<!-- Flag added ONLY to the test-compile step -->
+								
+							    <!-- this switch is needed for testing main.TestMain#testReflectionAccessClassInNonExportedBootLayerPackage -->
+								<arg>--add-exports</arg>
+                                <arg>jdk.management.agent/sun.management.jmxremote=de.hsh.permcheck</arg>
+							</compilerArgs>
+						</configuration>
+					</execution>
+				</executions>				
             </plugin>
             <plugin>
                 <artifactId>maven-jar-plugin</artifactId>

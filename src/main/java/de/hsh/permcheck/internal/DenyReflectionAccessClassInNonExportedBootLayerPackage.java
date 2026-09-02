@@ -33,8 +33,14 @@ public class DenyReflectionAccessClassInNonExportedBootLayerPackage extends Abst
         //    Class.class.getDeclaredMethod("getPermittedSubclasses"),
         //    denyResultClassArrayOnNonBootToBootClassLoaderAndNonExportedBootLayerPackage() );
 
+        registry.put(
+            Class.forName("java.lang.Class").getDeclaredMethod("getNestMembers"),
+            denyOnMultiReturnAndOnTargetsLoaderIsNullAndCallerLoaderIsNotNull() );
 
-//    java.lang.Class.getNestMembers()
+        registry.put(
+            Class.forName("java.lang.Class").getDeclaredMethod("getNestHost"),
+            denyOnThisReturnAndOnTargetsLoaderIsNullAndCallerLoaderIsNotNull() );
+
 //    java.lang.Class.getNestHost()
 //    java.lang.Class.getDeclaringClass()
 //    java.lang.Class.getEnclosingClass()
@@ -113,6 +119,53 @@ public class DenyReflectionAccessClassInNonExportedBootLayerPackage extends Abst
         return new DenyFirstArgOnNonExportedBootLayerPackageInsert();
     }
 
+    private class DenyOnMultiReturnAndOnTargetsLoaderIsNullAndCallerLoaderIsNotNullInsert extends ExitInsert {
+        @Override
+        public void onExitImpl(Hook hook, Object result) {
+            Class<?>[] classes = (Class<?>[])result;
+            // If the return value contains only the class itself, then no check is required:
+            if (classes == null || classes.length <= 1) return;
+
+			checkIfTargetIsRelevant(hook);
+        }
+    }
+    public DenyOnMultiReturnAndOnTargetsLoaderIsNullAndCallerLoaderIsNotNullInsert denyOnMultiReturnAndOnTargetsLoaderIsNullAndCallerLoaderIsNotNull() {
+        return new DenyOnMultiReturnAndOnTargetsLoaderIsNullAndCallerLoaderIsNotNullInsert();
+    }
+
+    private class DenyOnThisReturnAndOnTargetsLoaderIsNullAndCallerLoaderIsNotNullInsert extends ExitInsert {
+        @Override
+        public void onExitImpl(Hook hook, Object result) {
+            Class<?> clazz = (Class<?>)result;
+            // If the return value is the class itself, then no check is required:
+            if (clazz == getTarget(hook, Class.class)) return;
+
+			checkIfTargetIsRelevant(hook);
+        }
+    }
+    public DenyOnThisReturnAndOnTargetsLoaderIsNullAndCallerLoaderIsNotNullInsert denyOnThisReturnAndOnTargetsLoaderIsNullAndCallerLoaderIsNotNull() {
+        return new DenyOnThisReturnAndOnTargetsLoaderIsNullAndCallerLoaderIsNotNullInsert();
+    }
+	
+	private void checkIfTargetIsRelevant(Hook hook) {
+		Class<?> clazz = getTarget(hook, Class.class);
+		ClassLoader loader = clazz.getClassLoader();
+
+		// The following if cascade mimics ReflectUtil.needsPackageAccessCheck(ccl, cl)
+		if (loader == null) {
+			Class<?> caller = Helper.getCallerClass();
+			if (caller == null) return;
+			ClassLoader ccl = caller.getClassLoader();
+			if (ccl != null) {
+				// Yes, we need a check:
+				check(hook, clazz.getName());
+				return;
+			}
+		}
+		String msg = "[PERMCHECK] " + getCheckName()+ " is granted";
+		log(VerboseCategory.PERMIT, msg);     
+	}
+
 
     // private class DenyResultClassArrayOnNonBootToBootClassLoaderAndNonExportedBootLayerPackageInsert extends ExitInsert {
     //     @Override
@@ -139,21 +192,38 @@ public class DenyReflectionAccessClassInNonExportedBootLayerPackage extends Abst
                 )) {
             String msg = getCheckName()+ " is not granted";
             Helper.denyInvocation(hook, null, msg, this);
+            return;
         }
+        String msg = "[PERMCHECK] " + getCheckName()+ " is granted";
+        log(VerboseCategory.PERMIT, msg);
     }
 
-    private void check(Hook hook, Class<?> clazz) {
-        if (clazz == null) return;
-        ClassLoader cl = clazz.getClassLoader();
-        if (cl == null) {
-            Class<?> caller = Helper.getCallerClass();
-            ClassLoader ccl = caller.getClassLoader();
-            if (ccl != null) {
-                check(hook, clazz.getName());
-            }
-        }
-    }
 
+    
+
+    // private void check(Hook hook, Class<?> clazz) {
+    //     if (clazz == null) return;
+    //     ClassLoader cl = clazz.getClassLoader();
+    //     if (cl == null) {
+    //         Class<?> caller = Helper.getCallerClass();
+    //         ClassLoader ccl = caller.getClassLoader();
+    //         if (ccl != null) {
+    //             check(hook, clazz.getName());
+    //         }
+    //     }
+    // }
+
+    protected static <T> T getTarget(Hook hook, Class<T> clazz) {
+        if (hook.target() == null) {
+            throw new IllegalArgumentException("Expected object of type "+clazz+", but found null");
+        }
+        if (! (clazz.isAssignableFrom(hook.target().getClass()))) {
+            throw new IllegalArgumentException("Expected object of type "+clazz+", but found object of type '"+hook.target().getClass()+"'");
+        }
+        @SuppressWarnings("unchecked")
+        T result = (T)hook.target();
+        return result;
+    }
 
 
 }

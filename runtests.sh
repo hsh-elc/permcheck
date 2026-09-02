@@ -48,8 +48,14 @@ if [ ! -f ${JAVA_HOME_25_EXEC} ]; then
   exit 1
 fi
 
+# TEST_ARGS are only needed when running main.TestMain . 
+# They are not needed, when including the permcheck library in any other java application.
+TEST_ARGS=(
+  # this switch is needed for testing main.TestMain#testReflectionAccessClassInNonExportedBootLayerPackage:
+  --add-exports jdk.management.agent/sun.management.jmxremote=ALL-UNNAMED
+)
 
-mvn clean package -DskipTests || exit 1
+mvn -e clean package -DskipTests || exit 1
 
 # Java 17 with jar files in class path
 
@@ -58,6 +64,7 @@ $JAVA_HOME_17_EXEC \
   -XX:-EnableDynamicAgentLoading -Xshare:off -ea \
   -Dnet.bytebuddy.safe=true -javaagent:lib/byte-buddy-agent-1.17.7.jar \
   --add-reads java.base=ALL-UNNAMED \
+  "${TEST_ARGS[@]}" \
   -cp target/permcheck-${release}.jar${pathsep}target/permcheck-${release}-tests.jar${pathsep}lib/* \
   main.TestMain \
   --permcheck.policy permcheck.policy \
@@ -70,6 +77,7 @@ $JAVA_HOME_17_EXEC \
   -XX:-EnableDynamicAgentLoading -Xshare:off -ea \
   -Dnet.bytebuddy.safe=true -javaagent:lib/byte-buddy-agent-1.17.7.jar \
   --add-reads java.base=ALL-UNNAMED \
+  "${TEST_ARGS[@]}" \
   -cp target/classes${pathsep}target/test-classes${pathsep}lib/* \
   main.TestMain \
   --permcheck.policy permcheck.policy \
@@ -82,6 +90,7 @@ $JAVA_HOME_25_EXEC \
   --sun-misc-unsafe-memory-access=deny \
   -Dnet.bytebuddy.safe=true -javaagent:lib/byte-buddy-agent-1.17.7.jar \
   --add-reads java.base=ALL-UNNAMED \
+  "${TEST_ARGS[@]}" \
   -cp target/permcheck-${release}.jar${pathsep}target/permcheck-${release}-tests.jar${pathsep}lib/* \
   main.TestMain \
   --permcheck.policy permcheck.policy \

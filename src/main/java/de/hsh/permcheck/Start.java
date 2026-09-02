@@ -148,6 +148,8 @@ public class Start {
                 "DenyReflectionCreateClassLoader",
                 "DenyReflectionAccessClassInNonExportedBootLayerPackage",
                 "DenyReflectionAccessClassInNonExportedBootLayerPackage$DenyFirstArgOnNonExportedBootLayerPackageInsert",
+                "DenyReflectionAccessClassInNonExportedBootLayerPackage$DenyOnMultiReturnAndOnTargetsLoaderIsNullAndCallerLoaderIsNotNullInsert",
+                "DenyReflectionAccessClassInNonExportedBootLayerPackage$DenyOnThisReturnAndOnTargetsLoaderIsNullAndCallerLoaderIsNotNullInsert",
                 //"DenyReflectionAccessClassInNonExportedBootLayerPackage$DenyResultClassArrayOnNonBootToBootClassLoaderAndNonExportedBootLayerPackageInsert",
 
                 "AbstractPermitCheck",

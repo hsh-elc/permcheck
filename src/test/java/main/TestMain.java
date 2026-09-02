@@ -2164,6 +2164,24 @@ public class TestMain {
         Class<? extends Throwable> expectedException = PermcheckException.class;
         String expectedMsgPattern = ".*reflectionAccessClassInNonExportedBootLayerPackage is not granted.*";
 
+        // We want a class with the following specs:
+		// - part of the standard library
+		// - loaded by the boot classloader
+        // - contained in one of the packages: com.sun.*, jdk.internal*, sun.*
+        // - it has at least one nested class
+        // - visible
+		// The class sun.misc.Signal from jdk.unsupported module is exactly, what we are looking for.
+		Class<?> bootLayerClassWithNestedClasses, bootLayerClassWithNestHost;
+		try {
+			// the following class is not visible, but it is made visible in the pom.xml by adding an --add-exports switch
+			// during test compilation and in runtests.sh by adding an --add-exports switch
+			bootLayerClassWithNestedClasses = sun.management.jmxremote.ConnectorBootstrap.class;
+			bootLayerClassWithNestHost = sun.management.jmxremote.ConnectorBootstrap.DefaultValues.class;
+		} catch (Throwable t) {
+            // shouldn't happen
+            throw new AssertionError("Internal error in TestCase", t);
+		}
+
         ArrayList<TestCase> result = new ArrayList<>();
 
         class TestCaseAppClassLoaderLoadClassShouldDenyAccessClassInNonExportedBootLayerPackage extends TestCase {
@@ -2198,6 +2216,28 @@ public class TestMain {
         }
         result.add(new TestCaseInternalClassLoaderLoadClassShouldDenyAccessClassInNonExportedBootLayerPackage());
 
+        class TestCaseClassGetNestMembersShouldDenyAccessClassInNonExportedBootLayerPackage extends TestCase {
+            public TestCaseClassGetNestMembersShouldDenyAccessClassInNonExportedBootLayerPackage() {
+                super(expectedException, expectedMsgPattern);
+            }
+            @Override public Double apply(Double x) {
+                Class<?>[] nested = bootLayerClassWithNestedClasses.getNestMembers(); // should fail
+                return 0.0;
+            }
+        }
+        result.add(new TestCaseClassGetNestMembersShouldDenyAccessClassInNonExportedBootLayerPackage());
+		
+        class TestCaseClassGetNestHostShouldDenyAccessClassInNonExportedBootLayerPackage extends TestCase {
+            public TestCaseClassGetNestHostShouldDenyAccessClassInNonExportedBootLayerPackage() {
+                super(expectedException, expectedMsgPattern);
+            }
+            @Override public Double apply(Double x) {
+                Class<?> host = bootLayerClassWithNestHost.getNestHost(); // should fail
+                return 0.0;
+            }
+        }
+        result.add(new TestCaseClassGetNestHostShouldDenyAccessClassInNonExportedBootLayerPackage());
+		
         return result;
     }
 
