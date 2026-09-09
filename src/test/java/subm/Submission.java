@@ -8,8 +8,8 @@ public class Submission extends SuperSubmission  {
     private static int staticVar;
 
     static {
-        staticVar = new java.util.Random().nextInt();
         System.out.println("Submission static initalizer 1");
+        staticVar = new java.util.Random().nextInt();
         CLASS_OFFSET = 0.1;
     }
 

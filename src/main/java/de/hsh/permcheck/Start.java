@@ -36,6 +36,8 @@ public class Start {
     private static boolean byteBuddyIsConfigured = false;
     private static final String INTERNAL_PKG_PREFIX = Start.class.getPackageName() + ".internal.";
     
+    private Start() {}
+    
     // static {
     //     System.out.println("Klasse " + Start.class + " geladen durch: " + Start.class.getClassLoader());
     //     new Exception().printStackTrace(System.out);
@@ -150,6 +152,10 @@ public class Start {
                 "DenyReflectionAccessClassInNonExportedBootLayerPackage$DenyFirstArgOnNonExportedBootLayerPackageInsert",
                 "DenyReflectionAccessClassInNonExportedBootLayerPackage$DenyOnMultiReturnAndOnTargetsLoaderIsNullAndCallerLoaderIsNotNullInsert",
                 "DenyReflectionAccessClassInNonExportedBootLayerPackage$DenyOnThisReturnAndOnTargetsLoaderIsNullAndCallerLoaderIsNotNullInsert",
+				"DenyReflectionAccessClassInNonExportedBootLayerPackage$DenyOnReturnedClassClassloaderIsNullAndCallerLoaderIsNotNullInsert",
+                "DenyReflectionAccessClassInNonExportedBootLayerPackage$DenyOnTargetClassloaderIsNullAndCallerLoaderIsNotNullInsert",
+                "DenyReflectionAccessClassInNonExportedBootLayerPackage$DenyLookupFirstArgOnNonExportedBootLayerPackageInsert",
+                "DenyReflectionAccessClassInNonExportedBootLayerPackage$DenyLookupFirstArgsClassOnNonExportedBootLayerPackageInsert",
                 //"DenyReflectionAccessClassInNonExportedBootLayerPackage$DenyResultClassArrayOnNonBootToBootClassLoaderAndNonExportedBootLayerPackageInsert",
 
                 "AbstractPermitCheck",

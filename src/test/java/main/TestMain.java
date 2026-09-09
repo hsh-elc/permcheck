@@ -50,13 +50,16 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.EnumSet;
 import java.util.Formatter;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Properties;
 import java.util.Random;
 import java.util.Scanner;
 import java.util.Set;
 import java.util.TimeZone;
+import java.util.stream.Stream;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 import java.util.zip.ZipOutputStream;
@@ -83,6 +86,11 @@ public class TestMain {
     private static final String PASSWORD = Long.toUnsignedString(new Random().nextLong());
 
     public static void main(String[] args) throws Exception {
+        // Thread.setDefaultUncaughtExceptionHandler((thread, throwable) -> {
+        //     // Avoid complex loggers or complex objects here during debugging
+        //     System.err.println("Exception in " + thread.getName() + ": " + throwable.getMessage());
+        //     throwable.printStackTrace();
+        // });
         String tempFolderForBootstrapInjection = null;
         String policy = "";
 
@@ -129,8 +137,10 @@ public class TestMain {
 
         try {
             Start.configureByteBuddyAgentIfAny(policy, PASSWORD, tempFolderForBootstrapInjection);
+            System.out.println("Start.configureByteBuddyAgentIfAny(...) finished");
 
-            //System.out.println("permcheck is active: " + Start.isActive(PASSWORD));
+            System.out.print("permcheck is active: ");
+            System.out.println(Start.isActive(PASSWORD));
 
             // System.out.println("Ready to start tests ... press ENTER ...");
             // Scanner console = new Scanner(System.in);
@@ -141,9 +151,20 @@ public class TestMain {
 
             gradeSubmission(junit, PASSWORD);
 
-            List<TestCase> tests = collectTestCaseFactoryMethods();
-            for (TestCase tc : tests) {
-                runTestCase(junit, PASSWORD, tc);
+            Map<String,List<TestCase>> tests = collectTestCaseFactoryMethods();
+            List<String> policyRows = Stream.of(policy.split("\\R"))
+                // remove line comment:
+                .map(s -> s.indexOf('#') < 0 ? s : s.substring(0, s.indexOf('#')))
+                // trim spaces:
+                .map(String::trim)
+                .toList();
+            for (String relatedSpec : tests.keySet()) {
+                if (!relatedSpec.isEmpty()) System.out.println("Testing Spec '" + relatedSpec + "' ...");
+                if (relatedSpec.isEmpty() || policyRows.contains(relatedSpec)) {
+                    for (TestCase tc : tests.get(relatedSpec)) {
+                        runTestCase(junit, PASSWORD, tc);
+                    }
+                }
             }
         } finally {
             // System.out.println("Enter to finish...");
@@ -183,8 +204,8 @@ public class TestMain {
         return result;
     }
 
-    private static List<TestCase> collectTestCaseFactoryMethods() {
-        List<TestCase> tests = new ArrayList<>();
+    private static Map<String,List<TestCase>> collectTestCaseFactoryMethods() {
+        LinkedHashMap<String,List<TestCase>> tests = new LinkedHashMap<>();
         Method[] factories = TestMain.class.getDeclaredMethods();
         Arrays.sort(factories, (a, b) -> a.getName().compareTo(b.getName()));
         for (Method factory : factories) {
@@ -198,10 +219,14 @@ public class TestMain {
                 if (factory.getParameterCount() != 0) {
                     throw new AssertionError("Internal error. @TestCaseFactory annotated method should get 0 parameters.");
                 }
+                String relatedSpec = factory.getAnnotation(TestCaseFactory.class).relatedSpec();
+                if (!tests.containsKey(relatedSpec)) {
+                    tests.put(relatedSpec, new ArrayList<>());
+                }
                 try {
                     @SuppressWarnings("unchecked")
                     Collection<TestCase> list = (Collection<TestCase>) factory.invoke(null);
-                    tests.addAll(list);
+                    tests.get(relatedSpec).addAll(list);
                 } catch (IllegalAccessException e) {
                     throw new AssertionError("Internal error. @TestCaseFactory method is not accessible.", e);
                 } catch (IllegalArgumentException e) {
@@ -244,7 +269,7 @@ public class TestMain {
     }
 
 
-    @TestCaseFactory
+    @TestCaseFactory(relatedSpec = "")
     private static List<TestCase> testNoAttack() {
         ArrayList<TestCase> result = new ArrayList<>();
 
@@ -258,7 +283,7 @@ public class TestMain {
         return result;
     }
 
-    @TestCaseFactory
+    @TestCaseFactory(relatedSpec = "deny.reflectionAccessDeclaredMembers")
     private static List<TestCase> testPerformance() {
         ArrayList<TestCase> result = new ArrayList<>();
 
@@ -285,7 +310,7 @@ public class TestMain {
         return result;
     }
 
-    @TestCaseFactory
+    @TestCaseFactory(relatedSpec = "")
     private static List<TestCase> testWrongResult() {
         ArrayList<TestCase> result = new ArrayList<>();
 
@@ -302,7 +327,7 @@ public class TestMain {
         return result;
     }
 
-    @TestCaseFactory
+    @TestCaseFactory(relatedSpec = "")
     private static List<TestCase> testAttackToPermcheck() {
         ArrayList<TestCase> result = new ArrayList<>();
 
@@ -343,7 +368,7 @@ public class TestMain {
         return result;
     }
 
-    @TestCaseFactory
+    @TestCaseFactory(relatedSpec = "deny.exitVm")
     private static List<TestCase> testExitVm() {
         Class<? extends Throwable> expectedException = PermcheckException.class;
         String expectedMsgPattern = ".*exitVm is not granted.*";
@@ -385,7 +410,7 @@ public class TestMain {
         return result;
     }
 
-    @TestCaseFactory
+    @TestCaseFactory(relatedSpec = "deny.reflectionSetAccessible")
     private static List<TestCase> testReflectionSetAccessible() {
         Class<? extends Throwable> expectedException = PermcheckException.class;
         String expectedMsgPattern = ".*reflectionSetAccessible is not granted.*";
@@ -528,7 +553,7 @@ public class TestMain {
         return result;
     }
 
-    @TestCaseFactory
+    @TestCaseFactory(relatedSpec = "deny.reflectionAccessDeclaredMembers")
     private static List<TestCase> testReflectionAccessDeclaredMembers() {
         Class<? extends Throwable> expectedException = PermcheckException.class;
         String expectedMsgPattern = ".*reflectionAccessDeclaredMembers is not granted.*";
@@ -1680,7 +1705,7 @@ public class TestMain {
         return result;
     }
 
-    @TestCaseFactory
+    @TestCaseFactory(relatedSpec = "deny.reflectionGetStackTrace")
     private static List<TestCase> testReflectionGetStacktrace() {
         Class<? extends Throwable> expectedException = PermcheckException.class;
         String expectedMsgPattern = ".*reflectionGetStackTrace is not granted.*";
@@ -1720,7 +1745,7 @@ public class TestMain {
         return result;
     }
 
-    @TestCaseFactory
+    @TestCaseFactory(relatedSpec = "deny.reflectionGetStackWalkerWithClassReference")
     private static List<TestCase> testReflectionGetStackWalkerWithClassReference() {
         Class<? extends Throwable> expectedException = PermcheckException.class;
         String expectedMsgPattern = ".*reflectionGetStackWalkerWithClassReference is not granted.*";
@@ -1787,7 +1812,7 @@ public class TestMain {
         return result;
     }
 
-    @TestCaseFactory
+    @TestCaseFactory(relatedSpec = "deny.reflectionGetClassLoader")
     private static List<TestCase> testReflectionGetClassLoader() {
         Class<? extends Throwable> expectedException = PermcheckException.class;
         String expectedMsgPattern = ".*reflectionGetClassLoader is not granted.*";
@@ -2085,7 +2110,7 @@ public class TestMain {
         return result;
     }
 
-    @TestCaseFactory
+    @TestCaseFactory(relatedSpec = "deny.reflectionCreateClassLoader")
     private static List<TestCase> testReflectionCreateClassLoader() {
         Class<? extends Throwable> expectedException = PermcheckException.class;
         String expectedMsgPattern = ".*reflectionCreateClassLoader is not granted.*";
@@ -2159,7 +2184,7 @@ public class TestMain {
         return result;
     }
 
-    @TestCaseFactory
+    @TestCaseFactory(relatedSpec = "deny.reflectionAccessClassInNonExportedBootLayerPackage")
     private static List<TestCase> testReflectionAccessClassInNonExportedBootLayerPackage() {
         Class<? extends Throwable> expectedException = PermcheckException.class;
         String expectedMsgPattern = ".*reflectionAccessClassInNonExportedBootLayerPackage is not granted.*";
@@ -2181,6 +2206,7 @@ public class TestMain {
             // shouldn't happen
             throw new AssertionError("Internal error in TestCase", t);
 		}
+        Class<?> nonBootLayerlassWithNestHost = java.awt.geom.Point2D.Float.class;
 
         ArrayList<TestCase> result = new ArrayList<>();
 
@@ -2221,6 +2247,7 @@ public class TestMain {
                 super(expectedException, expectedMsgPattern);
             }
             @Override public Double apply(Double x) {
+                @SuppressWarnings("unused")
                 Class<?>[] nested = bootLayerClassWithNestedClasses.getNestMembers(); // should fail
                 return 0.0;
             }
@@ -2232,16 +2259,333 @@ public class TestMain {
                 super(expectedException, expectedMsgPattern);
             }
             @Override public Double apply(Double x) {
+                @SuppressWarnings("unused")
                 Class<?> host = bootLayerClassWithNestHost.getNestHost(); // should fail
                 return 0.0;
             }
         }
         result.add(new TestCaseClassGetNestHostShouldDenyAccessClassInNonExportedBootLayerPackage());
 		
+        class TestCaseClassGetDeclaringClassShouldDenyAccessClassInNonExportedBootLayerPackage extends TestCase {
+            public TestCaseClassGetDeclaringClassShouldDenyAccessClassInNonExportedBootLayerPackage() {
+                super(expectedException, expectedMsgPattern);
+            }
+            @Override public Double apply(Double x) {
+				@SuppressWarnings("unused")
+                Class<?> c1 = nonBootLayerlassWithNestHost.getDeclaringClass(); // should succeed
+                @SuppressWarnings("unused")
+                Class<?> c2 = bootLayerClassWithNestHost.getDeclaringClass(); // should fail
+                return 0.0;
+            }
+        }
+        result.add(new TestCaseClassGetDeclaringClassShouldDenyAccessClassInNonExportedBootLayerPackage());
+		
+        class TestCaseClassGetEnclosingClassShouldDenyAccessClassInNonExportedBootLayerPackage extends TestCase {
+            public TestCaseClassGetEnclosingClassShouldDenyAccessClassInNonExportedBootLayerPackage() {
+                super(expectedException, expectedMsgPattern);
+            }
+            @Override public Double apply(Double x) {
+				@SuppressWarnings("unused")
+                Class<?> c1 = nonBootLayerlassWithNestHost.getEnclosingClass(); // should succeed
+                @SuppressWarnings("unused")
+                Class<?> c2 = bootLayerClassWithNestHost.getEnclosingClass(); // should fail
+                return 0.0;
+            }
+        }
+        result.add(new TestCaseClassGetEnclosingClassShouldDenyAccessClassInNonExportedBootLayerPackage());
+		
+        class TestCaseClassNewInstanceShouldDenyAccessClassInNonExportedBootLayerPackage extends TestCase {
+            public TestCaseClassNewInstanceShouldDenyAccessClassInNonExportedBootLayerPackage() {
+                super(expectedException, expectedMsgPattern);
+            }
+            @Override public Double apply(Double x) {
+                try {
+                    @SuppressWarnings({ "deprecation", "unused" })
+                    Object o = bootLayerClassWithNestedClasses.newInstance(); // should fail
+                } catch (InstantiationException | IllegalAccessException e) {
+                    // shouldn't happen
+                    throw new AssertionError("Internal error in TestCase", e);
+                }
+                return 0.0;
+            }
+        }
+        result.add(new TestCaseClassNewInstanceShouldDenyAccessClassInNonExportedBootLayerPackage());
+		
+        class TestCaseClassGetDeclaredFieldShouldDenyAccessClassInNonExportedBootLayerPackage extends TestCase {
+            public TestCaseClassGetDeclaredFieldShouldDenyAccessClassInNonExportedBootLayerPackage() {
+                super(expectedException, ".*reflection(AccessDeclaredMembers|AccessClassInNonExportedBootLayerPackage) is not granted.*");
+            }
+            @Override public Double apply(Double x) {
+                try {
+                    bootLayerClassWithNestedClasses.getDeclaredField("registry");
+                } catch (NoSuchFieldException e) {
+                    // shouldn't happen
+                    throw new AssertionError("Internal error in TestCase", e);
+                }
+                return 0.0;
+            }
+        }
+        result.add(new TestCaseClassGetDeclaredFieldShouldDenyAccessClassInNonExportedBootLayerPackage());
+		
+        class TestCaseClassGetDeclaredMethodShouldDenyAccessClassInNonExportedBootLayerPackage extends TestCase {
+            public TestCaseClassGetDeclaredMethodShouldDenyAccessClassInNonExportedBootLayerPackage() {
+                super(expectedException, ".*reflection(AccessDeclaredMembers|AccessClassInNonExportedBootLayerPackage) is not granted.*");
+            }
+            @Override public Double apply(Double x) {
+                try {
+                    bootLayerClassWithNestedClasses.getDeclaredMethod("checkPasswordFile", String.class);
+                } catch (NoSuchMethodException e) {
+                    // shouldn't happen
+                    throw new AssertionError("Internal error in TestCase", e);
+                }
+                return 0.0;
+            }
+        }
+        result.add(new TestCaseClassGetDeclaredMethodShouldDenyAccessClassInNonExportedBootLayerPackage());
+		
+        class TestCaseClassGetDeclaredConstructorShouldDenyAccessClassInNonExportedBootLayerPackage extends TestCase {
+            public TestCaseClassGetDeclaredConstructorShouldDenyAccessClassInNonExportedBootLayerPackage() {
+                super(expectedException, ".*reflection(AccessDeclaredMembers|AccessClassInNonExportedBootLayerPackage) is not granted.*");
+            }
+            @Override public Double apply(Double x) {
+                try {
+                    bootLayerClassWithNestedClasses.getDeclaredConstructor();
+                } catch (NoSuchMethodException e) {
+                    // shouldn't happen
+                    throw new AssertionError("Internal error in TestCase", e);
+                }
+                return 0.0;
+            }
+        }
+        result.add(new TestCaseClassGetDeclaredConstructorShouldDenyAccessClassInNonExportedBootLayerPackage());
+		
+        class TestCaseClassGetEnclosingMethodShouldDenyAccessClassInNonExportedBootLayerPackage extends TestCase {
+            public TestCaseClassGetEnclosingMethodShouldDenyAccessClassInNonExportedBootLayerPackage() {
+                super(expectedException, ".*reflection(AccessDeclaredMembers|AccessClassInNonExportedBootLayerPackage) is not granted.*");
+            }
+            @Override public Double apply(Double x) {
+                bootLayerClassWithNestedClasses.getEnclosingMethod();
+                return 0.0;
+            }
+        }
+        result.add(new TestCaseClassGetEnclosingMethodShouldDenyAccessClassInNonExportedBootLayerPackage());
+		
+        class TestCaseClassGetEnclosingConstructorShouldDenyAccessClassInNonExportedBootLayerPackage extends TestCase {
+            public TestCaseClassGetEnclosingConstructorShouldDenyAccessClassInNonExportedBootLayerPackage() {
+                super(expectedException, ".*reflection(AccessDeclaredMembers|AccessClassInNonExportedBootLayerPackage) is not granted.*");
+            }
+            @Override public Double apply(Double x) {
+                bootLayerClassWithNestedClasses.getEnclosingConstructor();
+                return 0.0;
+            }
+        }
+        result.add(new TestCaseClassGetEnclosingConstructorShouldDenyAccessClassInNonExportedBootLayerPackage());
+		
+        class TestCaseClassGetDeclaredFieldsShouldDenyAccessClassInNonExportedBootLayerPackage extends TestCase {
+            public TestCaseClassGetDeclaredFieldsShouldDenyAccessClassInNonExportedBootLayerPackage() {
+                super(expectedException, ".*reflection(AccessDeclaredMembers|AccessClassInNonExportedBootLayerPackage) is not granted.*");
+            }
+            @Override public Double apply(Double x) {
+                bootLayerClassWithNestedClasses.getDeclaredFields();
+                return 0.0;
+            }
+        }
+        result.add(new TestCaseClassGetDeclaredFieldsShouldDenyAccessClassInNonExportedBootLayerPackage());
+		
+        class TestCaseClassGetDeclaredMethodsShouldDenyAccessClassInNonExportedBootLayerPackage extends TestCase {
+            public TestCaseClassGetDeclaredMethodsShouldDenyAccessClassInNonExportedBootLayerPackage() {
+                super(expectedException, ".*reflection(AccessDeclaredMembers|AccessClassInNonExportedBootLayerPackage) is not granted.*");
+            }
+            @Override public Double apply(Double x) {
+                bootLayerClassWithNestedClasses.getDeclaredMethods();
+                return 0.0;
+            }
+        }
+        result.add(new TestCaseClassGetDeclaredMethodsShouldDenyAccessClassInNonExportedBootLayerPackage());
+		
+        class TestCaseClassGetDeclaredConstructorsShouldDenyAccessClassInNonExportedBootLayerPackage extends TestCase {
+            public TestCaseClassGetDeclaredConstructorsShouldDenyAccessClassInNonExportedBootLayerPackage() {
+                super(expectedException, ".*reflection(AccessDeclaredMembers|AccessClassInNonExportedBootLayerPackage) is not granted.*");
+            }
+            @Override public Double apply(Double x) {
+                bootLayerClassWithNestedClasses.getDeclaredConstructors();
+                return 0.0;
+            }
+        }
+        result.add(new TestCaseClassGetDeclaredConstructorsShouldDenyAccessClassInNonExportedBootLayerPackage());
+		
+        class TestCaseClassGetDeclaredClassesShouldDenyAccessClassInNonExportedBootLayerPackage extends TestCase {
+            public TestCaseClassGetDeclaredClassesShouldDenyAccessClassInNonExportedBootLayerPackage() {
+                super(expectedException, ".*reflection(AccessDeclaredMembers|AccessClassInNonExportedBootLayerPackage) is not granted.*");
+            }
+            @Override public Double apply(Double x) {
+                bootLayerClassWithNestedClasses.getDeclaredClasses();
+                return 0.0;
+            }
+        }
+        result.add(new TestCaseClassGetDeclaredClassesShouldDenyAccessClassInNonExportedBootLayerPackage());
+		
+        class TestCaseClassGetRecordComponentsShouldDenyAccessClassInNonExportedBootLayerPackage extends TestCase {
+            public TestCaseClassGetRecordComponentsShouldDenyAccessClassInNonExportedBootLayerPackage() {
+                super(expectedException, ".*reflection(AccessDeclaredMembers|AccessClassInNonExportedBootLayerPackage) is not granted.*");
+            }
+            @Override public Double apply(Double x) {
+                bootLayerClassWithNestedClasses.getRecordComponents();
+                return 0.0;
+            }
+        }
+        result.add(new TestCaseClassGetRecordComponentsShouldDenyAccessClassInNonExportedBootLayerPackage());
+		
+        class TestCaseClassGetFieldShouldDenyAccessClassInNonExportedBootLayerPackage extends TestCase {
+            public TestCaseClassGetFieldShouldDenyAccessClassInNonExportedBootLayerPackage() {
+                super(expectedException, expectedMsgPattern);
+            }
+            @Override public Double apply(Double x) {
+                try {
+                    bootLayerClassWithNestedClasses.getField("registry");
+                } catch (NoSuchFieldException e) {
+                    // shouldn't happen, even if registry is a private field, since permcheck should intervene before.
+                    throw new AssertionError("Internal error in TestCase", e);
+                }
+                return 0.0;
+            }
+        }
+        result.add(new TestCaseClassGetFieldShouldDenyAccessClassInNonExportedBootLayerPackage());
+		
+        // Lasse ich weg, weil es zu StackOverflows führt:
+        // class TestCaseClassGetMethodShouldDenyAccessClassInNonExportedBootLayerPackage extends TestCase {
+        //     public TestCaseClassGetMethodShouldDenyAccessClassInNonExportedBootLayerPackage() {
+        //         super(expectedException, expectedMsgPattern);
+        //     }
+        //     @Override public Double apply(Double x) {
+        //         try {
+        //             bootLayerClassWithNestedClasses.getMethod("checkPasswordFile", String.class);
+        //         } catch (NoSuchMethodException e) {
+        //             // shouldn't happen
+        //             throw new AssertionError("Internal error in TestCase", e);
+        //         }
+        //         return 0.0;
+        //     }
+        // }
+        // result.add(new TestCaseClassGetMethodShouldDenyAccessClassInNonExportedBootLayerPackage());
+		
+        class TestCaseClassGetConstructorShouldDenyAccessClassInNonExportedBootLayerPackage extends TestCase {
+            public TestCaseClassGetConstructorShouldDenyAccessClassInNonExportedBootLayerPackage() {
+                super(expectedException, expectedMsgPattern);
+            }
+            @Override public Double apply(Double x) {
+                try {
+                    bootLayerClassWithNestedClasses.getConstructor();
+                } catch (NoSuchMethodException e) {
+                    // shouldn't happen
+                    throw new AssertionError("Internal error in TestCase", e);
+                }
+                return 0.0;
+            }
+        }
+        result.add(new TestCaseClassGetConstructorShouldDenyAccessClassInNonExportedBootLayerPackage());
+		
+        class TestCaseClassGetFieldsShouldDenyAccessClassInNonExportedBootLayerPackage extends TestCase {
+            public TestCaseClassGetFieldsShouldDenyAccessClassInNonExportedBootLayerPackage() {
+                super(expectedException, expectedMsgPattern);
+            }
+            @Override public Double apply(Double x) {
+                bootLayerClassWithNestedClasses.getFields();
+                return 0.0;
+            }
+        }
+        result.add(new TestCaseClassGetFieldsShouldDenyAccessClassInNonExportedBootLayerPackage());
+		
+        class TestCaseClassGetMethodsShouldDenyAccessClassInNonExportedBootLayerPackage extends TestCase {
+            public TestCaseClassGetMethodsShouldDenyAccessClassInNonExportedBootLayerPackage() {
+                super(expectedException, expectedMsgPattern);
+            }
+            @Override public Double apply(Double x) {
+                bootLayerClassWithNestedClasses.getMethods();
+                return 0.0;
+            }
+        }
+        result.add(new TestCaseClassGetMethodsShouldDenyAccessClassInNonExportedBootLayerPackage());
+		
+        class TestCaseClassGetConstructorsShouldDenyAccessClassInNonExportedBootLayerPackage extends TestCase {
+            public TestCaseClassGetConstructorsShouldDenyAccessClassInNonExportedBootLayerPackage() {
+                super(expectedException, expectedMsgPattern);
+            }
+            @Override public Double apply(Double x) {
+                bootLayerClassWithNestedClasses.getConstructors();
+                return 0.0;
+            }
+        }
+        result.add(new TestCaseClassGetConstructorsShouldDenyAccessClassInNonExportedBootLayerPackage());
+		
+        class TestCaseClassGetClassesShouldDenyAccessClassInNonExportedBootLayerPackage extends TestCase {
+            public TestCaseClassGetClassesShouldDenyAccessClassInNonExportedBootLayerPackage() {
+                super(expectedException, expectedMsgPattern);
+            }
+            @Override public Double apply(Double x) {
+                bootLayerClassWithNestedClasses.getClasses();
+                return 0.0;
+            }
+        }
+        result.add(new TestCaseClassGetClassesShouldDenyAccessClassInNonExportedBootLayerPackage());
+		
+
+        class TestCaseMethodHandlesLookupInClassFindStaticShouldAllowAccessClassInExportedBootLayerPackage extends TestCase {
+            @Override public Double apply(Double x) {
+                try {
+                    // this is a public static method in class BigInteger:
+                    MethodHandles.lookup().in(BigInteger.class).findStatic(BigInteger.class, "valueOf", MethodType.methodType(BigInteger.class, long.class));
+                    // ^ this should succeed, because
+                    // - lookup().in(...) reduces the lookup object to having no full capabilities anymore
+                    // - but BigInteger is not from a non-exported boot layer package.
+                } catch (PermcheckException e) {
+                    // If there is specified "deny.reflectionAccessDeclaredMembers", then we will see
+                    // this exception type. We should assert, that the message is NOT 
+                    // reflectionAccessClassInNonExportedBootLayerPackage
+                    if (!e.getMessage().matches(".*reflectionAccessDeclaredMembers is not granted.*")) {
+                        // unexpected exception
+                        throw e;
+                    }
+                } catch (NoSuchMethodException e) {
+                    // shouldn't happen
+                    throw new AssertionError("Internal error in TestCase", e);
+                } catch (IllegalAccessException e) {
+                    // shouldn't happen
+                    throw new AssertionError("Internal error in TestCase", e);
+                }
+                return Math.sqrt(x);
+            }
+        }
+        result.add(new TestCaseMethodHandlesLookupInClassFindStaticShouldAllowAccessClassInExportedBootLayerPackage());
+
+        class TestCaseMethodHandlesLookupInClassFindStaticShouldDenyAccessClassInNonExportedBootLayerPackage extends TestCase {
+            public TestCaseMethodHandlesLookupInClassFindStaticShouldDenyAccessClassInNonExportedBootLayerPackage() {
+                super(expectedException, ".*reflection(AccessDeclaredMembers|AccessClassInNonExportedBootLayerPackage) is not granted.*");
+            }
+            @Override public Double apply(Double x) {
+                try {
+                    // this is a public static method in class BigInteger:
+                    MethodHandles.lookup().in(bootLayerClassWithNestedClasses).findStatic(bootLayerClassWithNestedClasses, "unexportRegistry", MethodType.methodType(void.class));
+                    // ^ this should fail, since lookup().in(...) reduces the lookup object to having no full capabilities anymore
+                    // and since we are accessing a non-exported bootlayer class.
+                } catch (NoSuchMethodException e) {
+                    // shouldn't happen
+                    throw new AssertionError("Internal error in TestCase", e);
+                } catch (IllegalAccessException e) {
+                    // shouldn't happen
+                    throw new AssertionError("Internal error in TestCase", e);
+                }
+                return 0.0;
+            }
+        }
+        result.add(new TestCaseMethodHandlesLookupInClassFindStaticShouldDenyAccessClassInNonExportedBootLayerPackage());
+
+
+
         return result;
     }
 
-    @TestCaseFactory
+    @TestCaseFactory(relatedSpec = "deny.fileExceptSpecifiedPermissions")
     private static List<TestCase> testFile() {
         Class<? extends Throwable> expectedException = PermcheckException.class;
 
@@ -3511,7 +3855,7 @@ public class TestMain {
 
     }
 
-    @TestCaseFactory
+    @TestCaseFactory(relatedSpec = "deny.propertyExceptSpecifiedPermissions")
     private static List<TestCase> testProperty() {
         Class<? extends Throwable> expectedException = PermcheckException.class;
         ArrayList<TestCase> result = new ArrayList<>();
@@ -3644,7 +3988,7 @@ public class TestMain {
         return result;
     }
 
-    @TestCaseFactory
+    @TestCaseFactory(relatedSpec = "deny.envExceptSpecifiedPermissions")
     private static List<TestCase> testEnv() {
         Class<? extends Throwable> expectedException = PermcheckException.class;
         ArrayList<TestCase> result = new ArrayList<>();

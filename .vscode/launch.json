@@ -24,7 +24,7 @@
                 "-Xshare:off",
                 "-Dnet.bytebuddy.safe=true",
                 "-ea",
-                "-javaagent:lib/byte-buddy-agent-1.15.11.jar",
+                "-javaagent:lib/byte-buddy-agent-1.17.7.jar",
                 "--add-reads",
                 "java.base=ALL-UNNAMED"
             ],
@@ -43,8 +43,8 @@
         },
         {
             "type": "java",
-            "javaExec": "C:\\PROGRA~1\\Java\\TemurinJDK-24\\bin\\java.exe",
-            "name": "TestMain on Java 24",
+            "javaExec": "C:\\PROGRA~1\\Java\\TemurinJDK-25\\bin\\java.exe",
+            "name": "TestMain on Java 25",
             "request": "launch",
             "mainClass": "main.TestMain",
             "vmArgs": [
@@ -53,7 +53,7 @@
                 "--sun-misc-unsafe-memory-access=deny",
                 "-Dnet.bytebuddy.safe=true",
                 "-ea",
-                "-javaagent:lib/byte-buddy-agent-1.15.11.jar",
+                "-javaagent:lib/byte-buddy-agent-1.17.7.jar",
                 "--add-reads",
                 "java.base=ALL-UNNAMED"
             ],

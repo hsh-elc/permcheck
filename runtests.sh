@@ -55,7 +55,8 @@ TEST_ARGS=(
   --add-exports jdk.management.agent/sun.management.jmxremote=ALL-UNNAMED
 )
 
-mvn -e clean package -DskipTests || exit 1
+cmd.exe /c "mvn -e clean package -DskipTests" || exit 1
+#mvn -e clean package -DskipTests || exit 1
 
 # Java 17 with jar files in class path
 

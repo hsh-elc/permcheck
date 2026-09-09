@@ -55,7 +55,7 @@ public record Hook(Class<?> originClazz, Object target, Executable originExecuta
                 text = Arrays.toString(array);
             } else if (arg instanceof char[] array) {
                 text = Arrays.toString(array);
-            } else if (arg instanceof Class[] array) {
+            } else if (arg instanceof Class<?>[] array) {
                 text = Arrays.toString(Stream.of(array).map(c -> c.getName()+".class").toArray());
             } else if (arg instanceof Object[] array) {
                 text = Arrays.toString(array);

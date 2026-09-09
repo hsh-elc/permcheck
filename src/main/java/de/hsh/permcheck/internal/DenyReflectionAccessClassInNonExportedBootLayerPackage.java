@@ -41,82 +41,156 @@ public class DenyReflectionAccessClassInNonExportedBootLayerPackage extends Abst
             Class.forName("java.lang.Class").getDeclaredMethod("getNestHost"),
             denyOnThisReturnAndOnTargetsLoaderIsNullAndCallerLoaderIsNotNull() );
 
-//    java.lang.Class.getNestHost()
-//    java.lang.Class.getDeclaringClass()
-//    java.lang.Class.getEnclosingClass()
-//    java.lang.Class.checkMemberAccess() -> viele Methoden in java.lang.Class. und zwar
-//      newInstance
-// 	 getEnclosingMethod
-// 	 getConstructor(Class...)
-// 	 getEnclosingConstructor
-// 	 getField(String)
-// 	 getMethods
-// 	 getConstructors
-// 	 getDeclaredField(String)
-// 	 getDelcaredMethods
-// 	 getDeclaredClasses
-// 	 getRecordComponents
-// 	 getDeclaredConstructors
-// 	 getFields
-// 	 getDeclaredConstructor(Class...)
-// 	 getClasses
-// 	 getDeclaredMethod(String, Class...)
-// 	 getMethod(String, Class...)
-// 	 getDeclaredFields
-//   Und bei ClassLoader.checkPackageAccess steht als Kommentar: Invoked by the VM after loading class with this loader.
-//   D. h. wahrscheinlich muss ich beim Exit von loadClass einen Insert einhängen?
-  
-  
-  
-//   Außerdem muss ich aus Lookup ganz viele Methoden einbinden, die via MethodHandles$Lookup.checkSecurityManager auf ReflectUtil.checkPackageAccess(class) zugreifen. Die Bedingung lautet hier: lookup hat keine full privileges.
-//   Das sind genau die in DenyReflectionAccessDeclaredMembersCheck registrierten Methoden, also:
-//         registry.put(
-//                 MethodHandles.Lookup.class.getDeclaredMethod("findStatic", Class.class, String.class, MethodType.class),
-//                 denyFirstArgOnDifferentClassloaders() );
-//         registry.put(
-//                 MethodHandles.Lookup.class.getDeclaredMethod("findStaticSetter", Class.class, String.class, Class.class),
-//                 denyFirstArgOnDifferentClassloaders() );
-//         registry.put(
-//                 MethodHandles.Lookup.class.getDeclaredMethod("findStaticGetter", Class.class, String.class, Class.class),
-//                 denyFirstArgOnDifferentClassloaders() );
-//         registry.put(
-//                 MethodHandles.Lookup.class.getDeclaredMethod("findStaticVarHandle", Class.class, String.class, Class.class),
-//                 denyFirstArgOnDifferentClassloaders() );
-//         registry.put(
-//                 MethodHandles.Lookup.class.getDeclaredMethod("findSetter", Class.class, String.class, Class.class),
-//                 denyFirstArgOnDifferentClassloaders() );
-//         registry.put(
-//                 MethodHandles.Lookup.class.getDeclaredMethod("findGetter", Class.class, String.class, Class.class),
-//                 denyFirstArgOnDifferentClassloaders() );
-//         registry.put(
-//                 MethodHandles.Lookup.class.getDeclaredMethod("findVirtual", Class.class, String.class, MethodType.class),
-//                 denyFirstArgOnDifferentClassloaders() );
-//         registry.put(
-//                 MethodHandles.Lookup.class.getDeclaredMethod("findConstructor", Class.class, MethodType.class),
-//                 denyFirstArgOnDifferentClassloaders() );
-//         registry.put(
-//                 MethodHandles.Lookup.class.getDeclaredMethod("findSpecial", Class.class, String.class, MethodType.class, Class.class),
-//                 denyFirstArgOnDifferentClassloaders() );
-//         registry.put(
-//                 MethodHandles.Lookup.class.getDeclaredMethod("findVarHandle", Class.class, String.class, Class.class),
-//                 denyFirstArgOnDifferentClassloaders() );
-//         registry.put(
-//                 MethodHandles.Lookup.class.getDeclaredMethod("bind", Object.class, String.class, MethodType.class),
-//                 denyFirstArgsClassOnDifferentClassloaders() );  
+        registry.put(
+            Class.forName("java.lang.Class").getDeclaredMethod("getDeclaringClass"),
+            denyOnReturnedClassClassloaderIsNullAndCallerLoaderIsNotNull() );
 
+        registry.put(
+            Class.forName("java.lang.Class").getDeclaredMethod("getEnclosingClass"),
+            denyOnReturnedClassClassloaderIsNullAndCallerLoaderIsNotNull() );
 
+        registry.put(
+            Class.forName("java.lang.Class").getDeclaredMethod("newInstance"),
+            denyOnTargetClassloaderIsNullAndCallerLoaderIsNotNull() );
+
+        registry.put(
+            Class.forName("java.lang.Class").getDeclaredMethod("getDeclaredField", String.class),
+            denyOnTargetClassloaderIsNullAndCallerLoaderIsNotNull() );
+        registry.put(
+            Class.forName("java.lang.Class").getDeclaredMethod("getDeclaredMethod", String.class, Class[].class),
+            denyOnTargetClassloaderIsNullAndCallerLoaderIsNotNull() );
+        registry.put(
+            Class.forName("java.lang.Class").getDeclaredMethod("getDeclaredConstructor", Class[].class),
+            denyOnTargetClassloaderIsNullAndCallerLoaderIsNotNull() );
+        registry.put(
+            Class.forName("java.lang.Class").getDeclaredMethod("getEnclosingMethod"),
+            denyOnTargetClassloaderIsNullAndCallerLoaderIsNotNull() );
+        registry.put(
+            Class.forName("java.lang.Class").getDeclaredMethod("getEnclosingConstructor"),
+            denyOnTargetClassloaderIsNullAndCallerLoaderIsNotNull() );
+        registry.put(
+            Class.class.getDeclaredMethod("getDeclaredFields"),
+            denyOnTargetClassloaderIsNullAndCallerLoaderIsNotNull() );
+        registry.put(
+            Class.class.getDeclaredMethod("getDeclaredMethods"),
+            denyOnTargetClassloaderIsNullAndCallerLoaderIsNotNull() );
+        registry.put(
+            Class.class.getDeclaredMethod("getDeclaredConstructors"),
+            denyOnTargetClassloaderIsNullAndCallerLoaderIsNotNull() );
+        registry.put(
+            Class.class.getDeclaredMethod("getDeclaredClasses"),
+            denyOnTargetClassloaderIsNullAndCallerLoaderIsNotNull() );
+        registry.put(
+            Class.class.getDeclaredMethod("getRecordComponents"),
+            denyOnTargetClassloaderIsNullAndCallerLoaderIsNotNull() );
+        registry.put(
+            Class.class.getDeclaredMethod("getField", String.class),
+            denyOnTargetClassloaderIsNullAndCallerLoaderIsNotNull() );
+
+        // Das hier führt zu StackOverflows:
+        // registry.put(
+        //     Class.class.getDeclaredMethod("getMethod", String.class, Class[].class),
+        //     denyOnTargetClassloaderIsNullAndCallerLoaderIsNotNull() );
+        // Lasse ich offen.
+
+        registry.put(
+            Class.class.getDeclaredMethod("getConstructor", Class[].class),
+            denyOnTargetClassloaderIsNullAndCallerLoaderIsNotNull() );
+        registry.put(
+            Class.class.getDeclaredMethod("getFields"),
+            denyOnTargetClassloaderIsNullAndCallerLoaderIsNotNull() );
+        registry.put(
+            Class.class.getDeclaredMethod("getMethods"),
+            denyOnTargetClassloaderIsNullAndCallerLoaderIsNotNull() );
+        registry.put(
+            Class.class.getDeclaredMethod("getConstructors"),
+            denyOnTargetClassloaderIsNullAndCallerLoaderIsNotNull() );
+        registry.put(
+            Class.class.getDeclaredMethod("getClasses"),
+            denyOnTargetClassloaderIsNullAndCallerLoaderIsNotNull() );
+
+  
+        registry.put(
+                MethodHandles.Lookup.class.getDeclaredMethod("findStatic", Class.class, String.class, MethodType.class),
+                denyLookupFirstArgOnNonExportedBootLayerPackage() );
+        registry.put(
+                MethodHandles.Lookup.class.getDeclaredMethod("findStaticSetter", Class.class, String.class, Class.class),
+                denyLookupFirstArgOnNonExportedBootLayerPackage() );
+        registry.put(
+                MethodHandles.Lookup.class.getDeclaredMethod("findStaticGetter", Class.class, String.class, Class.class),
+                denyLookupFirstArgOnNonExportedBootLayerPackage() );
+        registry.put(
+                MethodHandles.Lookup.class.getDeclaredMethod("findStaticVarHandle", Class.class, String.class, Class.class),
+                denyLookupFirstArgOnNonExportedBootLayerPackage() );
+        registry.put(
+                MethodHandles.Lookup.class.getDeclaredMethod("findSetter", Class.class, String.class, Class.class),
+                denyLookupFirstArgOnNonExportedBootLayerPackage() );
+        registry.put(
+                MethodHandles.Lookup.class.getDeclaredMethod("findGetter", Class.class, String.class, Class.class),
+                denyLookupFirstArgOnNonExportedBootLayerPackage() );
+        registry.put(
+                MethodHandles.Lookup.class.getDeclaredMethod("findVirtual", Class.class, String.class, MethodType.class),
+                denyLookupFirstArgOnNonExportedBootLayerPackage() );
+        registry.put(
+                MethodHandles.Lookup.class.getDeclaredMethod("findConstructor", Class.class, MethodType.class),
+                denyLookupFirstArgOnNonExportedBootLayerPackage() );
+        registry.put(
+                MethodHandles.Lookup.class.getDeclaredMethod("findSpecial", Class.class, String.class, MethodType.class, Class.class),
+                denyLookupFirstArgOnNonExportedBootLayerPackage() );
+        registry.put(
+                MethodHandles.Lookup.class.getDeclaredMethod("findVarHandle", Class.class, String.class, Class.class),
+                denyLookupFirstArgOnNonExportedBootLayerPackage() );
+        registry.put(
+                MethodHandles.Lookup.class.getDeclaredMethod("bind", Object.class, String.class, MethodType.class),
+                denyLookupFirstArgsClassOnNonExportedBootLayerPackage() );  
     }
     
     private class DenyFirstArgOnNonExportedBootLayerPackageInsert extends EnterInsert {
         @Override
         public void onEnterImpl(Hook hook) {
-            String cn = getFirstArg(hook, String.class);
-            check(hook, cn);
+            Object o  = getFirstArg(hook, Object.class);
+            if (o == null) {
+                throw new IllegalArgumentException("Expected first arg of type String or Class, but found null");
+            }
+            if (o instanceof String) {
+                check(hook, (String)o);
+            } else if (o instanceof Class) {
+                checkIfArgIsRelevant(hook, (Class<?>)o);
+            } else {
+                throw new IllegalArgumentException("Expected first arg of type String or Class, but found '" + o.getClass() + "'");
+            }
         }
     }
 
     public DenyFirstArgOnNonExportedBootLayerPackageInsert denyFirstArgOnNonExportedBootLayerPackage() {
         return new DenyFirstArgOnNonExportedBootLayerPackageInsert();
+    }
+
+    private class DenyLookupFirstArgOnNonExportedBootLayerPackageInsert extends EnterInsert {
+        @Override
+        public void onEnterImpl(Hook hook) {
+            Class<?> clazz = getFirstArg(hook, Class.class);
+            MethodHandles.Lookup lookup = getTarget(hook, MethodHandles.Lookup.class);
+            checkLookup(hook, lookup, clazz);
+        }
+    }
+
+    public DenyLookupFirstArgOnNonExportedBootLayerPackageInsert denyLookupFirstArgOnNonExportedBootLayerPackage() {
+        return new DenyLookupFirstArgOnNonExportedBootLayerPackageInsert();
+    }
+
+    private class DenyLookupFirstArgsClassOnNonExportedBootLayerPackageInsert extends EnterInsert {
+        @Override
+        public void onEnterImpl(Hook hook) {
+            Object arg = getFirstArg(hook, Object.class);
+            Class<?> clazz = (Class<?>)arg.getClass();
+            MethodHandles.Lookup lookup = getTarget(hook, MethodHandles.Lookup.class);
+            checkLookup(hook, lookup, clazz);
+        }
+    }
+
+    public DenyLookupFirstArgsClassOnNonExportedBootLayerPackageInsert denyLookupFirstArgsClassOnNonExportedBootLayerPackage() {
+        return new DenyLookupFirstArgsClassOnNonExportedBootLayerPackageInsert();
     }
 
     private class DenyOnMultiReturnAndOnTargetsLoaderIsNullAndCallerLoaderIsNotNullInsert extends ExitInsert {
@@ -147,8 +221,34 @@ public class DenyReflectionAccessClassInNonExportedBootLayerPackage extends Abst
         return new DenyOnThisReturnAndOnTargetsLoaderIsNullAndCallerLoaderIsNotNullInsert();
     }
 	
+    private class DenyOnReturnedClassClassloaderIsNullAndCallerLoaderIsNotNullInsert extends ExitInsert {
+        @Override
+        public void onExitImpl(Hook hook, Object result) {
+            Class<?> clazz = (Class<?>)result;
+            if (clazz == null) return;
+
+			checkIfArgIsRelevant(hook, clazz);
+        }
+    }
+    public DenyOnReturnedClassClassloaderIsNullAndCallerLoaderIsNotNullInsert denyOnReturnedClassClassloaderIsNullAndCallerLoaderIsNotNull() {
+        return new DenyOnReturnedClassClassloaderIsNullAndCallerLoaderIsNotNullInsert();
+    }
+
+    private class DenyOnTargetClassloaderIsNullAndCallerLoaderIsNotNullInsert extends EnterInsert {
+        @Override
+        public void onEnterImpl(Hook hook) {
+			checkIfTargetIsRelevant(hook);
+        }
+    }
+    public DenyOnTargetClassloaderIsNullAndCallerLoaderIsNotNullInsert denyOnTargetClassloaderIsNullAndCallerLoaderIsNotNull() {
+        return new DenyOnTargetClassloaderIsNullAndCallerLoaderIsNotNullInsert();
+    }
+
 	private void checkIfTargetIsRelevant(Hook hook) {
-		Class<?> clazz = getTarget(hook, Class.class);
+		checkIfArgIsRelevant(hook, getTarget(hook, Class.class));
+	}
+
+	private void checkIfArgIsRelevant(Hook hook, Class<?> clazz) {
 		ClassLoader loader = clazz.getClassLoader();
 
 		// The following if cascade mimics ReflectUtil.needsPackageAccessCheck(ccl, cl)
@@ -165,6 +265,15 @@ public class DenyReflectionAccessClassInNonExportedBootLayerPackage extends Abst
 		String msg = "[PERMCHECK] " + getCheckName()+ " is granted";
 		log(VerboseCategory.PERMIT, msg);     
 	}
+
+    private void checkLookup(Hook hook, MethodHandles.Lookup lookup, Class<?> clazz) {
+        if (lookup != null && lookup.hasFullPrivilegeAccess()) {
+            String msg = "[PERMCHECK] " + getCheckName()+ " is granted";
+            log(VerboseCategory.PERMIT, msg);
+            return;
+        } 
+        checkIfArgIsRelevant(hook, clazz);
+    }
 
 
     // private class DenyResultClassArrayOnNonBootToBootClassLoaderAndNonExportedBootLayerPackageInsert extends ExitInsert {
