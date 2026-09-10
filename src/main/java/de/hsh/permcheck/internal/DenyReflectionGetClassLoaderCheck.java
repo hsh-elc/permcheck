@@ -10,8 +10,8 @@ import java.util.Locale;
 import java.util.ResourceBundle;
 import java.util.function.Function;
 
-public class DenyReflectionGetClassLoader extends AbstractDenyCheck {
-    public DenyReflectionGetClassLoader() {
+public class DenyReflectionGetClassLoaderCheck extends AbstractDenyCheck {
+    public DenyReflectionGetClassLoaderCheck() {
         super("reflectionGetClassLoader", "deny.reflectionGetClassLoader");
     }
 

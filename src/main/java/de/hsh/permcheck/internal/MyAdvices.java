@@ -166,7 +166,7 @@ public class MyAdvices {
             Hook hook = new Hook(originClazz, target, originExecutable, ary);
             log(VerboseCategory.TRACE, "[PERMCHECK] onMethodEnter: ", hook);
             
-            boolean[] stackInfo = isCalledFromSubmission(myAdvicesClass);
+            boolean[] stackInfo = isCalledFromDistrustedCode(myAdvicesClass);
             if (!stackInfo[1]) {
                 // not untrusted
                 return; 
@@ -201,7 +201,7 @@ public class MyAdvices {
             Hook hook = new Hook(originClazz, target, originExecutable, ary);
             log(VerboseCategory.TRACE, "[PERMCHECK] onMethodExit: ", hook);
 
-            boolean[] stackInfo = isCalledFromSubmission(myAdvicesClass);
+            boolean[] stackInfo = isCalledFromDistrustedCode(myAdvicesClass);
             if (!stackInfo[1]) {
                 // not untrusted
                 return; 
@@ -225,7 +225,7 @@ public class MyAdvices {
      *         up the call stack: (isPrivileged, isUntrustedClass). If both booleans are false, then none of
      *         the events occurred.
      */
-    private static boolean[] isCalledFromSubmission(Class<?> myAdvicesClass) {
+    private static boolean[] isCalledFromDistrustedCode(Class<?> myAdvicesClass) {
         boolean isUntrustedClass = false;
         boolean isPrivileged = false;
         StackTraceElement[] trace = Thread.currentThread().getStackTrace();

@@ -3,9 +3,9 @@ package de.hsh.permcheck.internal;
 import java.lang.module.Configuration;
 import java.util.List;
 
-public class DenyReflectionCreateClassLoader extends AbstractDenyCheck {
+public class DenyReflectionCreateClassLoaderCheck extends AbstractDenyCheck {
 
-    public DenyReflectionCreateClassLoader() {
+    public DenyReflectionCreateClassLoaderCheck() {
         super("reflectionCreateClassLoader", "deny.reflectionCreateClassLoader");
     }
 

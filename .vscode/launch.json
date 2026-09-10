@@ -26,7 +26,9 @@
                 "-ea",
                 "-javaagent:lib/byte-buddy-agent-1.17.7.jar",
                 "--add-reads",
-                "java.base=ALL-UNNAMED"
+                "java.base=ALL-UNNAMED",
+                "--add-exports",
+                "jdk.management.agent/sun.management.jmxremote=ALL-UNNAMED"
             ],
             "classPaths": [
                 "${workspaceFolder}/target/classes",
@@ -55,7 +57,9 @@
                 "-ea",
                 "-javaagent:lib/byte-buddy-agent-1.17.7.jar",
                 "--add-reads",
-                "java.base=ALL-UNNAMED"
+                "java.base=ALL-UNNAMED",
+                "--add-exports",
+                "jdk.management.agent/sun.management.jmxremote=ALL-UNNAMED"
             ],
             "classPaths": [
                 "${workspaceFolder}/target/classes",

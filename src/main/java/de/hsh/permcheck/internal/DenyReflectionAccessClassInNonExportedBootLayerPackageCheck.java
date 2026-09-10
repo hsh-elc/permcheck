@@ -5,9 +5,9 @@ import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
 import java.lang.reflect.Method;
 
-public class DenyReflectionAccessClassInNonExportedBootLayerPackage extends AbstractDenyCheck {
+public class DenyReflectionAccessClassInNonExportedBootLayerPackageCheck extends AbstractDenyCheck {
 
-    public DenyReflectionAccessClassInNonExportedBootLayerPackage() {
+    public DenyReflectionAccessClassInNonExportedBootLayerPackageCheck() {
         super("reflectionAccessClassInNonExportedBootLayerPackage", "deny.reflectionAccessClassInNonExportedBootLayerPackage");
     }
 

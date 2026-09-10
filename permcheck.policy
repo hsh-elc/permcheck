@@ -54,6 +54,12 @@ deny.reflectionCreateClassLoader
 # Marker key to prevent accessing classes in packages like sun.misc or jdk.internal:
 deny.reflectionAccessClassInNonExportedBootLayerPackage
 
+# Marker key to prevent class definition from bytes
+deny.reflectionDefineClass
+
+# Marker key to prevent stopping of foreign threads
+deny.threadStop
+
 # Marker key to initiate any file permission checks
 # If missing, no file access will be checked
 deny.fileExceptSpecifiedPermissions
@@ -226,6 +232,7 @@ privilege.plain java.base/java.lang.ProcessImpl#launchMechanism
 privilege.plain java.base/java.lang.invoke.InnerClassLambdaMetafactory#buildCallSite                
 privilege.plain java.base/java.lang.StackWalker#<clinit>
 privilege.plain java.base/java.lang.System#getLogger
+privilege.plain java.base/java.lang.Thread#isCCLOverridden
 privilege.plain java.base/java.net.InetAddress#<clinit>
 privilege.plain java.base/sun.net.InetAddressCachePolicy#<clinit>
 privilege.plain java.base/java.util.concurrent.atomic.Striped64#<clinit>

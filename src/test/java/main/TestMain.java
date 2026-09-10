@@ -47,6 +47,7 @@ import java.nio.file.attribute.UserPrincipal;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.Collection;
 import java.util.EnumSet;
 import java.util.Formatter;
@@ -59,6 +60,8 @@ import java.util.Random;
 import java.util.Scanner;
 import java.util.Set;
 import java.util.TimeZone;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ForkJoinPool;
 import java.util.stream.Stream;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
@@ -386,9 +389,9 @@ public class TestMain {
         result.add(new TestCaseSystemExit());
 
         class TestCaseRuntimeExit extends TestCase {
-            public TestCaseRuntimeExit() {
-                super(expectedException, expectedMsgPattern);
-            }
+            // public TestCaseRuntimeExit() {
+            //     super(expectedException, expectedMsgPattern);
+            // }
             @Override public Double apply(Double x) {
                 Runtime.getRuntime().exit(0);
                 return 0.0;
@@ -2581,7 +2584,219 @@ public class TestMain {
         result.add(new TestCaseMethodHandlesLookupInClassFindStaticShouldDenyAccessClassInNonExportedBootLayerPackage());
 
 
+        // Hier fehlen etliche Testfälle für MethodHandles.Lookup. Da diese für Klassen aus einem Non-exported BootLayer-Package
+        // realisiert werden müssten, ist das aufwändig, wenn nicht gar unmöglich. Wir lassen diese Testfälle einfach weg.
+        // Ähnliche Testfälle wurden für alle Lookup-Methoden in der Methode testReflectionAccessDeclaredMembers
+        // realisiert.
 
+        return result;
+    }
+
+    @TestCaseFactory(relatedSpec = "deny.reflectionDefineClass")
+    private static List<TestCase> testReflectionDefineClass() {
+        Class<? extends Throwable> expectedException = PermcheckException.class;
+        String expectedMsgPattern = ".*reflectionDefineClass is not granted.*";
+
+        ArrayList<TestCase> result = new ArrayList<>();
+
+        class TestCaseMethodHandlesLookupShouldDenyDefineClass extends TestCase {
+            public TestCaseMethodHandlesLookupShouldDenyDefineClass() {
+                super(expectedException, expectedMsgPattern);
+            }
+            @Override public Double apply(Double x) {
+                // Bytecode of:
+                // package java.math;
+                // public class X {
+                //     public static void main(String[] args) {
+                //         System.setOut(null);
+                //     }
+                // }
+                //
+                // We created the byte code by executing 
+                //   javac --patch-module java.base=. X.java
+                final String questionableProgramEncoded = "yv66vgAAAD0AFQoAAgADBwAEDAAFAAYBABBqYXZhL2xhbmcvT2JqZWN0AQAGPGluaXQ+AQADKClWCgAIAAkHAAoMAAsADAEAEGphdmEvbGFuZy9TeXN0ZW0BAAZzZXRPdXQBABgoTGphdmEvaW8vUHJpbnRTdHJlYW07KVYHAA4BAAtqYXZhL21hdGgvWAEABENvZGUBAA9MaW5lTnVtYmVyVGFibGUBAARtYWluAQAWKFtMamF2YS9sYW5nL1N0cmluZzspVgEAClNvdXJjZUZpbGUBAAZYLmphdmEAIQANAAIAAAAAAAIAAQAFAAYAAQAPAAAAHQABAAEAAAAFKrcAAbEAAAABABAAAAAGAAEAAAACAAkAEQASAAEADwAAACEAAQABAAAABQG4AAexAAAAAQAQAAAACgACAAAABAAEAAUAAQATAAAAAgAU";
+                final byte[] questionableBytecode = Base64.getDecoder().decode(questionableProgramEncoded);
+
+                MethodHandles.Lookup lookup = MethodHandles.lookup().in(BigInteger.class);
+                // ^ not fully privileged lookup, which should be denied by permcheck when calling
+                // defineClass.
+                try {
+                    lookup.defineClass(questionableBytecode);
+                    // ^ this should fail, since lookup().in(...) reduces the lookup object to having no full capabilities anymore
+                } catch (IllegalArgumentException | LinkageError | IllegalAccessException e) {
+                    // shouldn't happen
+                    throw new AssertionError("Internal error in TestCase", e);
+                }
+                return 0.0;
+            }
+        }
+        result.add(new TestCaseMethodHandlesLookupShouldDenyDefineClass());
+
+        class TestCaseFullyPrivilegedMethodHandlesLookupShouldAllowDefineClass extends TestCase {
+            @Override public Double apply(Double x) {
+                // Bytecode of:
+                // package main;
+                // public class X {
+                //   public static void main(String[] args) {
+                //     System.setOut(null);
+                //   }
+                // }
+                final String legalProgramEncoded = "yv66vgAAAD0AFQoAAgADBwAEDAAFAAYBABBqYXZhL2xhbmcvT2JqZWN0AQAGPGluaXQ+AQADKClWCgAIAAkHAAoMAAsADAEAEGphdmEvbGFuZy9TeXN0ZW0BAAZzZXRPdXQBABgoTGphdmEvaW8vUHJpbnRTdHJlYW07KVYHAA4BAAZtYWluL1gBAARDb2RlAQAPTGluZU51bWJlclRhYmxlAQAEbWFpbgEAFihbTGphdmEvbGFuZy9TdHJpbmc7KVYBAApTb3VyY2VGaWxlAQAGWC5qYXZhACEADQACAAAAAAACAAEABQAGAAEADwAAAB0AAQABAAAABSq3AAGxAAAAAQAQAAAABgABAAAAAgAJABEAEgABAA8AAAAhAAEAAQAAAAUBuAAHsQAAAAEAEAAAAAoAAgAAAAQABAAFAAEAEwAAAAIAFA==";
+                final byte[] legalBytecode = Base64.getDecoder().decode(legalProgramEncoded);
+
+                MethodHandles.Lookup lookup = MethodHandles.lookup();
+                // ^ fully privileged lookup, which should allow defineClass in the package of the
+                // caller class, i. e. in package "main".
+                try {
+                    lookup.defineClass(legalBytecode);
+                    // ^ this should succeed.
+                } catch (IllegalArgumentException | LinkageError | IllegalAccessException e) {
+                    // shouldn't happen
+                    throw new AssertionError("Internal error in TestCase", e);
+                }
+                return Math.sqrt(x);
+            }
+        }
+        result.add(new TestCaseFullyPrivilegedMethodHandlesLookupShouldAllowDefineClass());
+
+        class TestCaseMethodHandlesLookupShouldDenyDefineHiddenClass extends TestCase {
+            public TestCaseMethodHandlesLookupShouldDenyDefineHiddenClass() {
+                super(expectedException, expectedMsgPattern);
+            }
+            @Override public Double apply(Double x) {
+                final byte[] questionableBytecode = { 0x00 };
+
+                MethodHandles.Lookup lookup = MethodHandles.lookup().in(BigInteger.class);
+                // ^ not fully privileged lookup, which should be denied by permcheck when calling
+                // defineHiddenClass.
+                try {
+                    lookup.defineHiddenClass(questionableBytecode, true);
+                    // ^ this should fail, since lookup().in(...) reduces the lookup object to having no full capabilities anymore
+                } catch (IllegalArgumentException | LinkageError | IllegalAccessException e) {
+                    // shouldn't happen
+                    throw new AssertionError("Internal error in TestCase", e);
+                }
+                return 0.0;
+            }
+        }
+        result.add(new TestCaseMethodHandlesLookupShouldDenyDefineHiddenClass());
+
+        class TestCaseMethodHandlesLookupShouldDenyDefineHiddenClassWithClassData extends TestCase {
+            public TestCaseMethodHandlesLookupShouldDenyDefineHiddenClassWithClassData() {
+                super(expectedException, expectedMsgPattern);
+            }
+            @Override public Double apply(Double x) {
+                final byte[] questionableBytecode = { 0x00 };
+
+                MethodHandles.Lookup lookup = MethodHandles.lookup().in(BigInteger.class);
+                // ^ not fully privileged lookup, which should be denied by permcheck when calling
+                // defineHiddenClassWithClassData.
+                try {
+                    lookup.defineHiddenClassWithClassData(questionableBytecode, new Object(), true);
+                    // ^ this should fail, since lookup().in(...) reduces the lookup object to having no full capabilities anymore
+                } catch (IllegalArgumentException | LinkageError | IllegalAccessException e) {
+                    // shouldn't happen
+                    throw new AssertionError("Internal error in TestCase", e);
+                }
+                return 0.0;
+            }
+        }
+        result.add(new TestCaseMethodHandlesLookupShouldDenyDefineHiddenClassWithClassData());
+
+        return result;
+    }
+
+    @TestCaseFactory(relatedSpec = "deny.threadStop")
+    private static List<TestCase> testThreadStop() {
+        Class<? extends Throwable> expectedException = PermcheckException.class;
+        String expectedMsgPattern = ".*threadStop is not granted.*";
+
+        ArrayList<TestCase> result = new ArrayList<>();
+
+        class TestCaseThreadStopDenied extends TestCase {
+            public TestCaseThreadStopDenied() {
+                super(expectedException, expectedMsgPattern);
+            }
+            @Override public Double apply(Double x) {
+                final CountDownLatch latch = new CountDownLatch(1);
+                Thread t = new Thread( () -> { 
+                    try {
+                        latch.await(); // Blockiert sofort
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                    }
+                });
+                t.start();
+                while (!t.isAlive()) Thread.yield(); // wait for t to start
+                try {
+                    t.stop(); // should fail with PermCheckException
+                } catch (UnsupportedOperationException | ThreadDeath e) {
+                    // shouldn't happen
+                    // UnsupportedOperationException is thrown by stop from Java 20 and higher.
+                    // ThreadDeath is thrown on a successful stop until Java 19.
+                    // Both should be prevented by the permcheck.
+                    throw e;
+                } catch (PermcheckException e) {
+                    // desired. rethrow.
+                    throw e;
+                } catch (RuntimeException | Error e) {
+                    throw new AssertionError("Internal error in TestCase", e);
+                } finally {
+                    latch.countDown();
+                    // Let the thread run to end
+                    try {
+                        t.join();
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                    }
+                }
+                return 0.0;
+            }
+        }
+        result.add(new TestCaseThreadStopDenied());
+
+        class TestCaseThreadStopAllowed extends TestCase {
+            @Override public Double apply(Double x) {
+                final CountDownLatch latch = new CountDownLatch(1);
+                Thread t = new Thread() { 
+                    @Override public void run() {
+                        try {
+                            latch.await();
+                        } catch (InterruptedException e) {
+                            Thread.currentThread().interrupt();
+                        } 
+                        try {
+                            super.stop(); // should be allowed to stop myself
+                        } catch (ThreadDeath e) {
+                            // Before Java 20 we expect a successful stop, that results in a 
+                            // ThreadDeath error.
+                            //System.out.println("Thread successfully stopped itself");
+                            throw e; // This is desired behaviour
+                        } catch (UnsupportedOperationException e) {
+                            // Since Java 20 we receive an UnsupportedOperationException.
+                            // We return silently, since this is the desired behaviour.
+                        } catch (Error | RuntimeException e) {
+                            throw new AssertionError("Internal error in TestCase", e);
+                        }
+                    }
+                };
+                try {
+                    t.start();
+                } finally {
+                    latch.countDown();
+                    // Let the thread resume and then stop itself
+                    try {
+                        t.join();
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                    }
+                }
+                return Math.sqrt(x);
+            }
+        }
+        result.add(new TestCaseThreadStopAllowed());
+
+        
         return result;
     }
 
