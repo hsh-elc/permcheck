@@ -389,9 +389,9 @@ public class TestMain {
         result.add(new TestCaseSystemExit());
 
         class TestCaseRuntimeExit extends TestCase {
-            // public TestCaseRuntimeExit() {
-            //     super(expectedException, expectedMsgPattern);
-            // }
+            public TestCaseRuntimeExit() {
+                super(expectedException, expectedMsgPattern);
+            }
             @Override public Double apply(Double x) {
                 Runtime.getRuntime().exit(0);
                 return 0.0;
