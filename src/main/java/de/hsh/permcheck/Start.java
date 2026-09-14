@@ -162,6 +162,10 @@ public class Start {
 
                 "DenyThreadStopCheck",
                 "DenyThreadStopCheck$DenyOnTargetIsNotCurrentThreadInsert",
+                "DenyThreadModifyCheck",
+                "DenyThreadModifyRootOrMainGroupCheck",
+                "DenyThreadModifyRootOrMainGroupCheck$DenyTargetIsRootOrMainThreadGroupInsert",
+                "DenyThreadModifyRootOrMainGroupCheck$DenyFirstArgIsRootOrMainThreadGroupInsert",
 
                 "AbstractPermitCheck",
                 "BasicPermitCheck",

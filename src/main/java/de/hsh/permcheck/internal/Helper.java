@@ -98,5 +98,42 @@ public class Helper {
             return superClazz.getDeclaredMethod(name, parameterTypes);
         }
     }
+    
+    public static ThreadGroup getRootThreadGroup() {
+        ThreadGroup rootGroup = Thread.currentThread().getThreadGroup();
+        while (rootGroup.getParent() != null) {
+            rootGroup = rootGroup.getParent();
+        }
+        return rootGroup;
+    }
+
+    public static ThreadGroup getMainThreadGroup() {
+        final String MAIN = "main";
+        ThreadGroup group = Thread.currentThread().getThreadGroup();
+        while (group != null && !MAIN.equals(group.getName())) {
+            group = group.getParent();
+        }
+        if (group != null && MAIN.equals(group.getName())) return group;
+        return findChildGroup(getRootThreadGroup(), MAIN);
+    }
+
+    private static ThreadGroup findChildGroup(ThreadGroup group, String name) {
+        int n = 2 * group.activeGroupCount();
+        ThreadGroup[] children = new ThreadGroup[n];
+        int cnt = group.enumerate(children);
+        for (int i=0; i<cnt; i++) {
+            ThreadGroup c = children[i];
+            if (c != null) {
+                if (name.equals(c.getName())) return c;
+            }
+        }
+        for (int i=0; i<cnt; i++) {
+            if (children[i] != null) {
+                ThreadGroup c = findChildGroup(children[i], name);
+                if (c != null) return c;
+            }
+        }
+        return null;
+    }
 
 }

@@ -62,6 +62,9 @@ import java.util.Set;
 import java.util.TimeZone;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ForkJoinPool;
+import java.util.concurrent.RecursiveAction;
+import java.util.concurrent.RecursiveTask;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
@@ -72,6 +75,7 @@ import org.junit.runner.*;
 import org.junit.runner.notification.Failure;
 
 import de.hsh.permcheck.Start;
+import de.hsh.permcheck.internal.Helper;
 import de.hsh.permcheck.internal.Insert;
 import de.hsh.permcheck.internal.MyAdvices;
 import de.hsh.permcheck.internal.PermcheckException;
@@ -79,6 +83,7 @@ import de.hsh.permcheck.internal.Specs;
 import grader.Grader;
 import grader.TestRunner;
 import net.bytebuddy.dynamic.ClassFileLocator;
+import net.bytebuddy.implementation.bytecode.Throw;
 import net.bytebuddy.pool.TypePool;
 
 /**
@@ -162,11 +167,14 @@ public class TestMain {
                 .map(String::trim)
                 .toList();
             for (String relatedSpec : tests.keySet()) {
-                if (!relatedSpec.isEmpty()) System.out.println("Testing Spec '" + relatedSpec + "' ...");
+                List<TestCase> testCases = tests.get(relatedSpec);
                 if (relatedSpec.isEmpty() || policyRows.contains(relatedSpec)) {
+                    if (!relatedSpec.isEmpty()) System.out.println("Testing Spec '" + relatedSpec + "' with " + testCases.size() + " testcases ...");
                     for (TestCase tc : tests.get(relatedSpec)) {
                         runTestCase(junit, PASSWORD, tc);
                     }
+                } else {
+                    System.out.println("Skipping testing of Spec '" + relatedSpec + "', because it is not declared in the policy");                    
                 }
             }
         } finally {
@@ -246,8 +254,11 @@ public class TestMain {
     private static void runTestCase(JUnitCore junit, String password, TestCase tc) {
         TestRunner.tc = tc;
 
+        String what = "TestCase '" + tc.nameAndComment() + "'";
+        System.out.print(what + ": ... ");
+        System.out.flush();
         Result result = runJunitWithPermcheck(junit, TestRunner.class, password);
-        eval(result, "TestCase '" + tc.nameAndComment() + "'");
+        eval(result, what);
     }
 
     private static void eval(Result result, String what) throws AssertionError {
@@ -263,10 +274,10 @@ public class TestMain {
                 }
             }
             if (result.getFailureCount() > 0) {
-                System.out.println(what + ": FAILURE");
+                System.out.println("FAILURE");
                 throw new AssertionError("Failure in "+what+". Test run aborted.\n" + sb.toString());
             } else {
-                System.out.println(what + ": SUCCESS");
+                System.out.println("SUCCESS");
             }
         }
     }
@@ -2795,8 +2806,163 @@ public class TestMain {
             }
         }
         result.add(new TestCaseThreadStopAllowed());
-
         
+        return result;
+    }
+
+    @TestCaseFactory(relatedSpec = "deny.threadModify")
+    private static List<TestCase> testThreadModify() {
+        Class<? extends Throwable> expectedException = PermcheckException.class;
+        String expectedMsgPattern = ".*threadModify is not granted.*";
+
+        ArrayList<TestCase> result = new ArrayList<>();
+
+        class DummyWorkTask extends RecursiveTask<Double> {
+            private final long iterations;
+            public DummyWorkTask(long iterations) {
+                this.iterations = iterations;
+            }
+            @Override protected Double compute() {
+                double dummyVal = 0.0;
+                for (long i = 0; i < iterations; i++) {
+                    if (Thread.currentThread().isInterrupted()) return dummyVal;
+                    dummyVal += Math.sin(i) * Math.cos(i);
+                }
+                return dummyVal;
+            }
+        }
+        class TestCaseForkJoinPoolCreateDenied extends TestCase {
+            public TestCaseForkJoinPoolCreateDenied() {
+                super(expectedException, expectedMsgPattern);
+            }
+            @Override public Double apply(Double x) {
+                @SuppressWarnings("unused")
+                ForkJoinPool customPool = new ForkJoinPool(2); // should fail
+                return 0.0;
+            }
+        }
+        result.add(new TestCaseForkJoinPoolCreateDenied());
+
+        ForkJoinPool pool = new ForkJoinPool(2);
+        try {
+            pool.execute(new DummyWorkTask(200_000_000L));
+
+            class TestCaseForkJoinPoolShutdownDenied extends TestCase {
+                public TestCaseForkJoinPoolShutdownDenied() {
+                    super(expectedException, expectedMsgPattern);
+                }
+                @Override public Double apply(Double x) {
+                    pool.shutdown(); // should fail
+                    return 0.0;
+                }
+            }
+            result.add(new TestCaseForkJoinPoolShutdownDenied());
+
+            class TestCaseForkJoinPoolShutdownNowDenied extends TestCase {
+                public TestCaseForkJoinPoolShutdownNowDenied() {
+                    super(expectedException, expectedMsgPattern);
+                }
+                @Override public Double apply(Double x) {
+                    pool.shutdownNow(); // should fail
+                    return 0.0;
+                }
+            }
+            result.add(new TestCaseForkJoinPoolShutdownNowDenied());
+
+        } finally {
+            pool.shutdownNow(); // should succeed, since we are not inside a testcase
+            try {
+                pool.awaitTermination(2, TimeUnit.SECONDS);
+            } catch (InterruptedException e) {
+            }            
+        }
+
+        return result;
+    }
+
+    @TestCaseFactory(relatedSpec = "deny.threadModifyRootOrMainGroup")
+    private static List<TestCase> testThreadModifyRootGroup() {
+        Class<PermcheckException> expectedException = PermcheckException.class;
+        String expectedMsgPattern = ".*threadModifyRootOrMainGroup is not granted.*";
+
+        ArrayList<TestCase> result = new ArrayList<>();
+
+        class TestCaseThreadGroupMethodDenied extends TestCase {
+            protected ThreadGroup group;
+            protected Method method;
+            protected Object[] params;
+            public TestCaseThreadGroupMethodDenied(ThreadGroup group, Method method, Object ... params) {
+                super(expectedException, expectedMsgPattern, method.toGenericString());
+                this.group = group;
+                this.method = method;
+                this.params = params;
+            }
+            public TestCaseThreadGroupMethodDenied(ThreadGroup group, String method, Object ... params) {
+                this(group, getNoArgMethod(method));
+            }
+            private static Method getNoArgMethod(String method) {
+                try {
+                    return ThreadGroup.class.getDeclaredMethod(method);
+                } catch (Throwable e) {
+                    // shouldn't happen
+                    throw new AssertionError("Internal error in TestCase", e);
+                }
+            }
+            @Override public Double apply(Double x) {
+                try {
+                    method.invoke(group, params); // should fail at invocation target
+                } catch (InvocationTargetException e) {
+                    // desired behaviour
+                    Throwable t = e.getCause();
+                    if (expectedException.isInstance(t)) {
+                        throw expectedException.cast(t);
+                    }
+                    throw new AssertionError("Internal error in TestCase", e);
+                } catch (Throwable t) {
+                    // shouldn't happen
+                    throw new AssertionError("Internal error in TestCase", t);
+                }
+                return 0.0;
+            }
+        }
+
+        ThreadGroup[] groups = { Helper.getMainThreadGroup(), Helper.getRootThreadGroup() };
+        try {
+            for (ThreadGroup group : groups) {
+                if (Runtime.version().feature() <= 22) {
+                    // These methods were removed from the library in Java 23:
+                    result.add(new TestCaseThreadGroupMethodDenied(group, "suspend"));
+                    result.add(new TestCaseThreadGroupMethodDenied(group, "resume"));
+                    result.add(new TestCaseThreadGroupMethodDenied(group, "stop"));
+                }
+                result.add(new TestCaseThreadGroupMethodDenied(group, "interrupt"));
+                result.add(new TestCaseThreadGroupMethodDenied(group, "destroy"));
+                result.add(new TestCaseThreadGroupMethodDenied(group, "getParent"));
+                result.add(new TestCaseThreadGroupMethodDenied(group, ThreadGroup.class.getDeclaredMethod("setMaxPriority", int.class), Thread.MIN_PRIORITY));
+                result.add(new TestCaseThreadGroupMethodDenied(group, ThreadGroup.class.getDeclaredMethod("setDaemon", boolean.class), true));
+                Thread[] threadArray = new Thread[1];
+                result.add(new TestCaseThreadGroupMethodDenied(group, ThreadGroup.class.getDeclaredMethod("enumerate", Thread[].class), (Object)threadArray));
+                result.add(new TestCaseThreadGroupMethodDenied(group, ThreadGroup.class.getDeclaredMethod("enumerate", Thread[].class, boolean.class), threadArray, true));
+                ThreadGroup[] threadGroupArray = new ThreadGroup[1];
+                result.add(new TestCaseThreadGroupMethodDenied(group, ThreadGroup.class.getDeclaredMethod("enumerate", ThreadGroup[].class), (Object)threadGroupArray));
+                result.add(new TestCaseThreadGroupMethodDenied(group, ThreadGroup.class.getDeclaredMethod("enumerate", ThreadGroup[].class, boolean.class), threadGroupArray, true));
+            }
+        } catch (NoSuchMethodException e) {
+            // shouldn't happen
+            throw new AssertionError("Internal error in TestCase", e);
+        }
+
+        class TestCaseCreateThreadGroupBelowRootThreadGroupDenied extends TestCase {
+            public TestCaseCreateThreadGroupBelowRootThreadGroupDenied() {
+                super(expectedException, expectedMsgPattern);
+            }
+            @Override public Double apply(Double x) {
+                new ThreadGroup(Helper.getRootThreadGroup(), "whateverName"); // should fail
+                return 0.0;
+            }
+        }
+        result.add(new TestCaseCreateThreadGroupBelowRootThreadGroupDenied());
+
         return result;
     }
 

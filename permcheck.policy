@@ -60,6 +60,12 @@ deny.reflectionDefineClass
 # Marker key to prevent stopping of foreign threads
 deny.threadStop
 
+# Marker key to prevent modification of foreign threads
+deny.threadModify
+
+# Marker key to prevent modification of the root thread group
+deny.threadModifyRootOrMainGroup
+
 # Marker key to initiate any file permission checks
 # If missing, no file access will be checked
 deny.fileExceptSpecifiedPermissions

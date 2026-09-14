@@ -125,6 +125,8 @@ public class Specs {
             new DenyReflectionAccessClassInNonExportedBootLayerPackageCheck(),
             new DenyReflectionDefineClassCheck(),
             new DenyThreadStopCheck(),
+            new DenyThreadModifyCheck(),
+            new DenyThreadModifyRootOrMainGroupCheck(),
             new PermitFileCheck(),
             new PermitPropertyCheck(),
             new PermitEnvCheck()
