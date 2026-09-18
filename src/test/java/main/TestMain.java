@@ -2,6 +2,8 @@ package main;
 
 import java.awt.Desktop;
 import java.awt.desktop.QuitStrategy;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileFilter;
 import java.io.FileInputStream;
@@ -9,6 +11,7 @@ import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.FilenameFilter;
 import java.io.IOException;
+import java.io.PrintStream;
 import java.io.RandomAccessFile;
 import java.lang.StackWalker.Option;
 import java.lang.annotation.ElementType;
@@ -29,6 +32,8 @@ import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.lang.reflect.Proxy;
 import java.math.BigInteger;
+import java.net.NetworkInterface;
+import java.net.SocketException;
 import java.net.URL;
 import java.net.URLClassLoader;
 import java.nio.charset.Charset;
@@ -716,6 +721,103 @@ public class TestMain {
 
         
 
+        return result;
+    }
+
+    @TestCaseFactory(relatedSpec = "deny.contextSetIO")
+    private static List<TestCase> testContextSetIO() {
+        Class<? extends Throwable> expectedException = PermcheckException.class;
+        String expectedMsgPattern = ".*contextSetIO is not granted.*";
+        ArrayList<TestCase> result = new ArrayList<>();
+    
+        ByteArrayInputStream dummyIn = new ByteArrayInputStream(new byte[1]);
+        PrintStream dummyOut = new PrintStream(new ByteArrayOutputStream(1));
+
+        class TestCaseSystemSetInDenied extends TestCase {
+            public TestCaseSystemSetInDenied() {
+                super(expectedException, expectedMsgPattern);
+            }
+            @Override public Double apply(Double x) {
+                System.setIn(dummyIn); // should fail
+                return 0.0;
+            }
+        }
+        result.add(new TestCaseSystemSetInDenied());
+
+        class TestCaseSystemSetOutDenied extends TestCase {
+            public TestCaseSystemSetOutDenied() {
+                super(expectedException, expectedMsgPattern);
+            }
+            @Override public Double apply(Double x) {
+                System.setOut(dummyOut); // should fail
+                return 0.0;
+            }
+        }
+        result.add(new TestCaseSystemSetOutDenied());
+
+        class TestCaseSystemSetErrDenied extends TestCase {
+            public TestCaseSystemSetErrDenied() {
+                super(expectedException, expectedMsgPattern);
+            }
+            @Override public Double apply(Double x) {
+                System.setErr(dummyOut); // should fail
+                return 0.0;
+            }
+        }
+        result.add(new TestCaseSystemSetErrDenied());
+
+        return result;
+    }
+
+    @TestCaseFactory(relatedSpec = "deny.contextGetNetworkInformation")
+    private static List<TestCase> testContextGetNetworkInformation() {
+        Class<? extends Throwable> expectedException = PermcheckException.class;
+        String expectedMsgPattern = ".*contextGetNetworkInformation is not granted.*";
+        ArrayList<TestCase> result = new ArrayList<>();
+    
+        try {
+            NetworkInterface intfc = NetworkInterface.getNetworkInterfaces().asIterator().next();
+
+            class TestCaseSystemGetInetAddresses extends TestCase {
+                public TestCaseSystemGetInetAddresses() {
+                    super(expectedException, expectedMsgPattern);
+                }
+                @Override public Double apply(Double x) {
+                    intfc.getInetAddresses(); // should fail
+                    return 0.0;
+                }
+            }
+            result.add(new TestCaseSystemGetInetAddresses());
+
+            class TestCaseSystemInetAddresses extends TestCase {
+                public TestCaseSystemInetAddresses() {
+                    super(expectedException, expectedMsgPattern);
+                }
+                @Override public Double apply(Double x) {
+                    intfc.inetAddresses(); // should fail
+                    return 0.0;
+                }
+            }
+            result.add(new TestCaseSystemInetAddresses());
+
+            class TestCaseSystemGetHardwareAddress extends TestCase {
+                public TestCaseSystemGetHardwareAddress() {
+                    super(expectedException, expectedMsgPattern);
+                }
+                @Override public Double apply(Double x) {
+                    try {
+                        intfc.getHardwareAddress(); // should fail with PermcheckException
+                    } catch (SocketException e) {
+                        throw new AssertionError("Internal error in TestCase");
+                    } 
+                    return 0.0;
+                }
+            }
+            result.add(new TestCaseSystemGetHardwareAddress());
+
+        } catch (Exception e) {
+            throw new AssertionError("Internal error in TestCase");
+        }
         return result;
     }
 

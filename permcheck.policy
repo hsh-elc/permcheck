@@ -75,6 +75,12 @@ deny.contextManageProcess
 # Marker key to prevent loading native libraries
 deny.contextLoadLibrary
 
+# Marker key to prevent setting of System.out, System.in, and System.err
+deny.contextSetIO
+
+# Marker key to prevent leaking all information about local network interfaces
+deny.contextGetNetworkInformation
+
 
 
 # Marker key to initiate any file permission checks

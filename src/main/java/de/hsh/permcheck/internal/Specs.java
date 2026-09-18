@@ -130,6 +130,8 @@ public class Specs {
             new DenyThreadModifyRootOrMainGroupCheck(),
             new DenyContextManageProcessCheck(),
             new DenyContextLoadLibraryCheck(),
+            new DenyContextSetIOCheck(),
+            new DenyContextGetNetworkInformationCheck(),
             new PermitFileCheck(),
             new PermitPropertyCheck(),
             new PermitEnvCheck()

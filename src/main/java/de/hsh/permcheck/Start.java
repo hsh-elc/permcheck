@@ -171,6 +171,8 @@ public class Start {
 
                 "DenyContextManageProcessCheck",
                 "DenyContextLoadLibraryCheck",
+                "DenyContextSetIOCheck",
+                "DenyContextGetNetworkInformationCheck",
 
                 "AbstractPermitCheck",
                 "BasicPermitCheck",
