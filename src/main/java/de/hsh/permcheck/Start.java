@@ -131,7 +131,9 @@ public class Start {
                 "AbstractCheck$Registry",
 
                 "AbstractDenyCheck",
-                "DenyExitVmCheck",
+                "DenyShutdownExitVmCheck",
+                "DenyShutdownExitVmCheck$DenyOnExitOnCloseInsert",
+                "DenyShutdownHooksCheck",
                 "DenyReflectionSetAccessibleCheck",
                 "DenyReflectionAccessDeclaredMembersCheck",
                 "DenyReflectionAccessDeclaredMembersCheck$DenyTargetOnDifferentClassLoadersInsert",
@@ -166,6 +168,9 @@ public class Start {
                 "DenyThreadModifyRootOrMainGroupCheck",
                 "DenyThreadModifyRootOrMainGroupCheck$DenyTargetIsRootOrMainThreadGroupInsert",
                 "DenyThreadModifyRootOrMainGroupCheck$DenyFirstArgIsRootOrMainThreadGroupInsert",
+
+                "DenyContextManageProcessCheck",
+                "DenyContextLoadLibraryCheck",
 
                 "AbstractPermitCheck",
                 "BasicPermitCheck",

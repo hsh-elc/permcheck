@@ -1,6 +1,7 @@
 package main;
 
 import java.awt.Desktop;
+import java.awt.desktop.QuitStrategy;
 import java.io.File;
 import java.io.FileFilter;
 import java.io.FileInputStream;
@@ -69,6 +70,8 @@ import java.util.stream.Stream;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 import java.util.zip.ZipOutputStream;
+
+import javax.swing.JFrame;
 
 import org.junit.internal.Checks;
 import org.junit.runner.*;
@@ -382,10 +385,10 @@ public class TestMain {
         return result;
     }
 
-    @TestCaseFactory(relatedSpec = "deny.exitVm")
-    private static List<TestCase> testExitVm() {
+    @TestCaseFactory(relatedSpec = "deny.shutdownExitVm")
+    private static List<TestCase> testShutdownExitVm() {
         Class<? extends Throwable> expectedException = PermcheckException.class;
-        String expectedMsgPattern = ".*exitVm is not granted.*";
+        String expectedMsgPattern = ".*shutdownExitVm is not granted.*";
         ArrayList<TestCase> result = new ArrayList<>();
 
         class TestCaseSystemExit extends TestCase {
@@ -420,6 +423,298 @@ public class TestMain {
             }
         }
         result.add(new TestCaseRuntimeHalt());
+
+        class TestCaseJFrameExitOnClose extends TestCase {
+            public TestCaseJFrameExitOnClose() {
+                super(expectedException, expectedMsgPattern);
+            }
+            @Override public Double apply(Double x) {
+                JFrame frame = new JFrame();
+                frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE); // should fail
+                return 0.0;
+            }
+        }
+        result.add(new TestCaseJFrameExitOnClose());
+
+        class TestCaseDesktopEnableSuddenTerminationDenied extends TestCase {
+            public TestCaseDesktopEnableSuddenTerminationDenied() {
+                super(expectedException, expectedMsgPattern);
+            }
+            @Override public Double apply(Double x) {
+                if (Desktop.isDesktopSupported()) {
+                    Desktop.getDesktop().enableSuddenTermination(); // should fail
+                } else {
+                    // Cannot test this on this platform.
+                    setExpectedException(null);
+                    setExpectedMsgPattern(null);
+                    return Math.sqrt(x);
+                }
+                return 0.0;
+            }
+        }
+        result.add(new TestCaseDesktopEnableSuddenTerminationDenied());
+
+        class TestCaseDesktopDisableSuddenTerminationDenied extends TestCase {
+            public TestCaseDesktopDisableSuddenTerminationDenied() {
+                super(expectedException, expectedMsgPattern);
+            }
+            @Override public Double apply(Double x) {
+                if (Desktop.isDesktopSupported()) {
+                    Desktop.getDesktop().disableSuddenTermination(); // should fail
+                } else {
+                    // Cannot test this on this platform.
+                    setExpectedException(null);
+                    setExpectedMsgPattern(null);
+                    return Math.sqrt(x);
+                }
+                return 0.0;
+            }
+        }
+        result.add(new TestCaseDesktopDisableSuddenTerminationDenied());
+
+        class TestCaseDesktopSetQuitHandlerDenied extends TestCase {
+            public TestCaseDesktopSetQuitHandlerDenied() {
+                super(expectedException, expectedMsgPattern);
+            }
+            @Override public Double apply(Double x) {
+                if (Desktop.isDesktopSupported()) {
+                    Desktop.getDesktop().setQuitHandler((qe, qr) -> qr.performQuit()); // should fail
+                } else {
+                    // Cannot test this on this platform.
+                    setExpectedException(null);
+                    setExpectedMsgPattern(null);
+                    return Math.sqrt(x);
+                }
+                return 0.0;
+            }
+        }
+        result.add(new TestCaseDesktopSetQuitHandlerDenied());
+
+        class TestCaseDesktopSetQuitStrategyDenied extends TestCase {
+            public TestCaseDesktopSetQuitStrategyDenied() {
+                super(expectedException, expectedMsgPattern);
+            }
+            @Override public Double apply(Double x) {
+                if (Desktop.isDesktopSupported()) {
+                    Desktop.getDesktop().setQuitStrategy(QuitStrategy.NORMAL_EXIT); // should fail
+                } else {
+                    // Cannot test this on this platform.
+                    setExpectedException(null);
+                    setExpectedMsgPattern(null);
+                    return Math.sqrt(x);
+                }
+                return 0.0;
+            }
+        }
+        result.add(new TestCaseDesktopSetQuitStrategyDenied());
+
+        return result;
+    }
+
+    @TestCaseFactory(relatedSpec = "deny.shutdownHooks")
+    private static List<TestCase> testShutdownHooks() {
+        Class<? extends Throwable> expectedException = PermcheckException.class;
+        String expectedMsgPattern = ".*shutdownHooks is not granted.*";
+        ArrayList<TestCase> result = new ArrayList<>();
+
+        Thread dummyThread = new Thread( () -> {} );
+
+        class TestCaseRuntimeAddShutdownHook extends TestCase {
+            public TestCaseRuntimeAddShutdownHook() {
+                super(expectedException, expectedMsgPattern);
+            }
+            @Override public Double apply(Double x) {
+                Runtime.getRuntime().addShutdownHook(dummyThread);
+                return 0.0;
+            }
+        }
+        result.add(new TestCaseRuntimeAddShutdownHook());
+
+        class TestCaseRuntimeRemoveShutdownHook extends TestCase {
+            public TestCaseRuntimeRemoveShutdownHook() {
+                super(expectedException, expectedMsgPattern);
+            }
+            @Override public Double apply(Double x) {
+                Runtime.getRuntime().removeShutdownHook(dummyThread);
+                return 0.0;
+            }
+        }
+        result.add(new TestCaseRuntimeRemoveShutdownHook());
+
+        return result;
+    }
+
+    @TestCaseFactory(relatedSpec = "deny.contextManageProcess")
+    private static List<TestCase> testContextManageProcess() {
+        Class<? extends Throwable> expectedException = PermcheckException.class;
+        String expectedMsgPattern = ".*contextManageProcess is not granted.*";
+        ArrayList<TestCase> result = new ArrayList<>();
+
+        ProcessBuilder pb;
+        if (Util.isWindows()) {
+            String systemRoot = System.getenv("SystemRoot");
+            String cmdPath = systemRoot + "\\System32\\cmd.exe";
+            pb = new ProcessBuilder(cmdPath, "/c", "ping", "127.0.0.1", "-n", "6");
+        } else {
+            pb = new ProcessBuilder("sleep", "5");
+        }
+        pb.redirectOutput(ProcessBuilder.Redirect.DISCARD);
+        pb.redirectError(ProcessBuilder.Redirect.DISCARD);
+        
+        try {
+            Process sleepProcess = pb.start();
+            ProcessHandle sleepProcessHandle = sleepProcess.toHandle();
+
+            class TestCaseProcessToHandleDenied extends TestCase {
+                public TestCaseProcessToHandleDenied() {
+                    super(expectedException, expectedMsgPattern);
+                }
+                @Override public Double apply(Double x) {
+                    // Angriff: Starte einen Kind-Prozess, der 5 Sekunden nichts tut.
+                    // Der Kind-Prozess könnte noch laufen oder schon beendet sein.
+                    // Hole den Parent des Parent des Kindprozesses.
+                    // Das ist dann der Parent der ausführenden JVM, vermutlich eine Shell.
+                    // Kille die Shell und damit auch die JVM.
+                    ProcessHandle ph = sleepProcess.toHandle(); // should fail
+                    @SuppressWarnings("unused")
+                    long pidOfSleep = ph.pid();
+                    ProcessHandle phJvm = ph.parent().get();
+                    @SuppressWarnings("unused")
+                    long pidOfJVM = phJvm.pid();
+                    ProcessHandle phBash = ph.parent().get();
+                    long pid = phBash.pid();
+                    System.out.println("Process ID of JVM parent process (presumably a shell): " + pid);
+                    //phBash.destroy();
+                    return 0.0;
+                }
+            }
+            result.add(new TestCaseProcessToHandleDenied());
+
+            class TestCaseProcessHandleOfDenied extends TestCase {
+                public TestCaseProcessHandleOfDenied() {
+                    super(expectedException, expectedMsgPattern);
+                }
+                @Override public Double apply(Double x) {
+                    ProcessHandle.of(1000L); // should fail
+                    return 0.0;
+                }
+            }
+            result.add(new TestCaseProcessHandleOfDenied());
+
+            class TestCaseProcessHandleAllProcessesDenied extends TestCase {
+                public TestCaseProcessHandleAllProcessesDenied() {
+                    super(expectedException, expectedMsgPattern);
+                }
+                @Override public Double apply(Double x) {
+                    ProcessHandle.allProcesses(); // should fail
+                    return 0.0;
+                }
+            }
+            result.add(new TestCaseProcessHandleAllProcessesDenied());
+
+            class TestCaseProcessHandleCurrentDenied extends TestCase {
+                public TestCaseProcessHandleCurrentDenied() {
+                    super(expectedException, expectedMsgPattern);
+                }
+                @Override public Double apply(Double x) {
+                    ProcessHandle.current(); // should fail
+                    return 0.0;
+                }
+            }
+            result.add(new TestCaseProcessHandleCurrentDenied());
+
+            class TestCaseProcessHandleParentDenied extends TestCase {
+                public TestCaseProcessHandleParentDenied() {
+                    super(expectedException, expectedMsgPattern);
+                }
+                @Override public Double apply(Double x) {
+                    sleepProcessHandle.parent(); // should fail
+                    return 0.0;
+                }
+            }
+            result.add(new TestCaseProcessHandleParentDenied());
+
+            class TestCaseProcessHandleChildrenDenied extends TestCase {
+                public TestCaseProcessHandleChildrenDenied() {
+                    super(expectedException, expectedMsgPattern);
+                }
+                @Override public Double apply(Double x) {
+                    sleepProcessHandle.children(); // should fail
+                    return 0.0;
+                }
+            }
+            result.add(new TestCaseProcessHandleChildrenDenied());
+
+            class TestCaseProcessHandleDescendantsDenied extends TestCase {
+                public TestCaseProcessHandleDescendantsDenied() {
+                    super(expectedException, expectedMsgPattern);
+                }
+                @Override public Double apply(Double x) {
+                    sleepProcessHandle.descendants(); // should fail
+                    return 0.0;
+                }
+            }
+            result.add(new TestCaseProcessHandleDescendantsDenied());
+        } catch (IOException e) {
+            // shouldn't happen
+            throw new AssertionError("Internal error in testContextManageProcess");
+        }
+        
+
+        return result;
+    }
+
+    @TestCaseFactory(relatedSpec = "deny.contextLoadLibrary")
+    private static List<TestCase> testContextLoadLibrary() {
+        Class<? extends Throwable> expectedException = PermcheckException.class;
+        String expectedMsgPattern = ".*contextLoadLibrary is not granted.*";
+        ArrayList<TestCase> result = new ArrayList<>();
+    
+        class TestCaseSystemLoadDenied extends TestCase {
+            public TestCaseSystemLoadDenied() {
+                super(expectedException, expectedMsgPattern);
+            }
+            @Override public Double apply(Double x) {
+                System.load("dummy"); // should fail
+                return 0.0;
+            }
+        }
+        result.add(new TestCaseSystemLoadDenied());
+
+        class TestCaseSystemLoadLibraryDenied extends TestCase {
+            public TestCaseSystemLoadLibraryDenied() {
+                super(expectedException, expectedMsgPattern);
+            }
+            @Override public Double apply(Double x) {
+                System.loadLibrary("dummy"); // should fail
+                return 0.0;
+            }
+        }
+        result.add(new TestCaseSystemLoadLibraryDenied());
+
+        class TestCaseRuntimeLoadDenied extends TestCase {
+            public TestCaseRuntimeLoadDenied() {
+                super(expectedException, expectedMsgPattern);
+            }
+            @Override public Double apply(Double x) {
+                Runtime.getRuntime().load("dummy"); // should fail
+                return 0.0;
+            }
+        }
+        result.add(new TestCaseRuntimeLoadDenied());
+
+        class TestCaseRuntimeLoadLibraryDenied extends TestCase {
+            public TestCaseRuntimeLoadLibraryDenied() {
+                super(expectedException, expectedMsgPattern);
+            }
+            @Override public Double apply(Double x) {
+                Runtime.getRuntime().loadLibrary("dummy"); // should fail
+                return 0.0;
+            }
+        }
+        result.add(new TestCaseRuntimeLoadLibraryDenied());
+
+        
 
         return result;
     }

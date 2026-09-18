@@ -115,7 +115,8 @@ public class Specs {
         mySpecs = new Specs(password);
 
         AbstractCheck[] checks = {
-            new DenyExitVmCheck(),
+            new DenyShutdownExitVmCheck(),
+            new DenyShutdownHooksCheck(),
             new DenyReflectionSetAccessibleCheck(),
             new DenyReflectionAccessDeclaredMembersCheck(),
             new DenyReflectionGetStackTraceCheck(),
@@ -127,6 +128,8 @@ public class Specs {
             new DenyThreadStopCheck(),
             new DenyThreadModifyCheck(),
             new DenyThreadModifyRootOrMainGroupCheck(),
+            new DenyContextManageProcessCheck(),
+            new DenyContextLoadLibraryCheck(),
             new PermitFileCheck(),
             new PermitPropertyCheck(),
             new PermitEnvCheck()

@@ -31,7 +31,10 @@ debug.writeTransformedClass java.util.zip.ZipFile | ${{java.io.tmpdir}}/transfor
 
 
 # Prevent VM exit (marker key):
-deny.exitVm
+deny.shutdownExitVm
+
+# Prevent adding or removing JVM shutdown hooks (marker key):
+deny.shutdownHooks
 
 # Marker key to prevent setAccess calls
 deny.reflectionSetAccessible
@@ -65,6 +68,14 @@ deny.threadModify
 
 # Marker key to prevent modification of the root thread group
 deny.threadModifyRootOrMainGroup
+
+# Marker key to prevent identifying and terminating processes
+deny.contextManageProcess
+
+# Marker key to prevent loading native libraries
+deny.contextLoadLibrary
+
+
 
 # Marker key to initiate any file permission checks
 # If missing, no file access will be checked
@@ -263,19 +274,20 @@ privilege.plain java.compiler/javax.tools.ToolProvider#getSystemJavaCompiler
 privilege.plain java.compiler/javax.tools.JavaCompiler#getStandardFileManager
 privilege.plain jdk.compiler/com.sun.tools.javac.api.JavacTool#getStandardFileManager
 privilege.plain jdk.compiler/com.sun.tools.javac.api.JavacTaskImpl#call
-privilege.regex javafx\.base/[A-Za-z\.]+#<clinit>
-privilege.regex javafx\.graphics/[A-Za-z\.]+#<clinit>
-privilege.regex javafx\.controls/[A-Za-z\.]+#<clinit>
+privilege.regex javafx\.base/[A-Za-z\$\.]+#<clinit>
+privilege.regex javafx\.graphics/[A-Za-z\$\.]+#<clinit>
+privilege.regex javafx\.controls/[A-Za-z\$\.]+#<clinit>
 privilege.plain javafx.graphics/javafx.scene.Node#processCSS
 privilege.plain javafx.graphics/javafx.stage.Window#show
 privilege.plain javafx.graphics/com.sun.javafx.font.PrismFontFactory#getFontFactory
 privilege.plain javafx.graphics/com.sun.javafx.font.PrismFontFactory#getFontResource
 privilege.plain javafx.graphics/com.sun.javafx.font.PrismFontFactory#getDefaultFontResource
-privilege.regex java\\.desktop/javax\\.swing\\.[A-Za-z\\.]+#<clinit>
-privilege.regex java\\.desktop/java\\.awt\\.[A-Za-z\\.]+#<clinit>
+privilege.regex java\.desktop/javax\.swing\.[A-Za-z\$\.]+#<clinit>
+privilege.regex java\.desktop/java\.awt\.[A-Za-z\$\.]+#<clinit>
 privilege.plain java.desktop/java.awt.Desktop#isDesktopSupported
 privilege.plain java.desktop/java.awt.Desktop#getDesktop
 privilege.plain java.desktop/javax.swing.UIManager#loadSwingProperties
+privilege.plain java.desktop/javax.swing.JFrame#<init>
 
 # We assign privileges to many test factory methods, since these methods need
 # to prepare files and classes before instantiating TestCase objects.
@@ -297,14 +309,14 @@ privilege.plain null/main.Util#fileCopy
 # as "permit.file", it is easier to specify the grader code as "privilege", something
 # like this:
 # 
-#  privilege.regex null/com.grader.Grader#[\\p{L}\\p{Nl}\\p{Pc}][\\p{L}\\p{Nl}\\p{Pc}\\p{Nd}\\p{Mc}\\p{Mn}\\p{Cf}]*
+#  privilege.regex null/com.grader.Grader#[\p{L}\p{Nl}\p{Pc}][\p{L}\p{Nl}\p{Pc}\p{Nd}\p{Mc}\p{Mn}\p{Cf}]*
 # 
 # The specified regex is automatically enclosed in ^...$ by the permcheck library.
 # We construct a regular expression for an arbitrary method name:
-# - First character is a LETTER \\p{L}, a LETTER_NUMBER \\p{Nl} or a CONNECTOR_PUNCTUATION character \\p{Pc}
+# - First character is a LETTER \p{L}, a LETTER_NUMBER \p{Nl} or a CONNECTOR_PUNCTUATION character \p{Pc}
 # - The following characters are LETTER, LETTER_NUMBER, CONNECTOR_PUNCTUATION or
-#     DECIMAL_DIGIT \\p{Nd} or COMBINING_SPACING_MARK \\p{Mc} or NON_SPACING_MARK \\p{Mn} or FORMAT character \\p{Cf}
+#     DECIMAL_DIGIT \p{Nd} or COMBINING_SPACING_MARK \p{Mc} or NON_SPACING_MARK \p{Mn} or FORMAT character \p{Cf}
 # Together:
-# [\\p{L}\\p{Nl}\\p{Pc}][\\p{L}\\p{Nl}\\p{Pc}\\p{Nd}\\p{Mc}\\p{Mn}\\p{Cf}]*
+# [\p{L}\p{Nl}\p{Pc}][\p{L}\p{Nl}\p{Pc}\p{Nd}\p{Mc}\p{Mn}\p{Cf}]*
 #
 
