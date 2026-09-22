@@ -334,6 +334,7 @@ privilege.plain jdk.net/jdk.net.WindowsSocketOptions::<clinit>
 privilege.plain jdk.net/jdk.net.LinuxSocketOptions::<clinit>
 privilege.plain jdk.net/jdk.net.MacOSXSocketOptions::<clinit>
 privilege.plain java.base/sun.net.util.SocketExceptions::<clinit>
+privilege.plain java.base/sun.net.NetHooks::<clinit>
 
 # We assign privileges to many test factory methods, since these methods need
 # to prepare files and classes before instantiating TestCase objects.
