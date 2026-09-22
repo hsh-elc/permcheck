@@ -2626,7 +2626,8 @@ public class TestMain {
         // We want a class with the following specs:
 		// - part of the standard library
 		// - loaded by the boot classloader
-        // - contained in one of the packages: com.sun.*, jdk.internal*, sun.*
+        // - contained in one of the packages: com.sun.*, jdk.internal*, sun.*, 
+        //   but not in com.sun.javafx.*, com.sun.glass.ui.*
         // - it has at least one nested class
         // - visible
 		// The class sun.misc.Signal from jdk.unsupported module is exactly, what we are looking for.

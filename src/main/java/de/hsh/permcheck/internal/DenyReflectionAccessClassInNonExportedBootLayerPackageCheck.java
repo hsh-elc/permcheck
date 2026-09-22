@@ -295,7 +295,7 @@ public class DenyReflectionAccessClassInNonExportedBootLayerPackageCheck extends
         if (cn != null
                 && 
                 (
-                    cn.startsWith("com.sun.")
+                    cn.startsWith("com.sun.") && !cn.startsWith("com.sun.javafx.") && !cn.startsWith("com.sun.glass.ui.")
                     || cn.startsWith("jdk.internal") // no trailing dot is intended!
                     || cn.startsWith("sun.")
                 )) {

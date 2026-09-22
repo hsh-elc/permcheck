@@ -108,8 +108,8 @@ deny.networkExceptSpecifiedPermissions
 # - allow NTP access:
 #   permit.network pool.ntp.org:123
 
-permit.network *.ntp.org:123
-permit.network customdevserver.example.org:8000-8090
+#permit.network *.ntp.org:123
+#permit.network customdevserver.example.org:8000-8090
 permit.network *quiz.net:650-670   # portquiz.net
 permit.network localhost:-5010
 permit.network localhost:8088
