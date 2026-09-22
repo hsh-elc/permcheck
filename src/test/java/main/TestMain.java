@@ -1,6 +1,7 @@
 package main;
 
 import java.awt.Desktop;
+import java.awt.GraphicsEnvironment;
 import java.awt.desktop.QuitStrategy;
 import java.io.BufferedReader;
 import java.io.ByteArrayInputStream;
@@ -449,8 +450,15 @@ public class TestMain {
                 super(expectedException, expectedMsgPattern);
             }
             @Override public Double apply(Double x) {
-                JFrame frame = new JFrame();
-                frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE); // should fail
+                if (GraphicsEnvironment.isHeadless()) {
+                    // cannot test this on this platform
+                    setExpectedException(null);
+                    setExpectedMsgPattern(null);
+                    return Math.sqrt(x);
+                } else {
+                    JFrame frame = new JFrame();
+                    frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE); // should fail
+                }
                 return 0.0;
             }
         }
