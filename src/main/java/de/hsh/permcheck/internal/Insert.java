@@ -25,11 +25,11 @@ public abstract class Insert implements Logger {
 
     public abstract void onEnterImpl(Hook hook);
 
-    public final void onExit(Hook hook, Object result) {
-        onExitImpl(hook, result);
+    public final void onExit(Hook hook, Object result, Throwable thrown) {
+        onExitImpl(hook, result, thrown);
     }
 
-    public abstract void onExitImpl(Hook hook, Object result);
+    public abstract void onExitImpl(Hook hook, Object result, Throwable thrown);
 
     @Override
     public void log(VerboseCategory vc, String msg) {

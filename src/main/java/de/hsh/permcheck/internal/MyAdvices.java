@@ -131,12 +131,13 @@ public class MyAdvices {
                       @Advice.This(optional = true) Object target,
                       @Advice.Origin Executable originExecutable,
                       @Advice.AllArguments Object[] ary,
-                      @Advice.Return(typing = Typing.DYNAMIC) Object result) {
+                      @Advice.Return(typing = Typing.DYNAMIC) Object result,
+                      @Advice.Thrown Throwable thrown) {
         if (!initialized) return;
         if (!Specs.isActive()) return;
         if (!tryToGetInside()) return; // cycle
         try {
-            exitImpl(MyAdvices.class, originClazz, target, originExecutable, ary, result);
+            exitImpl(MyAdvices.class, originClazz, target, originExecutable, ary, result, thrown);
         } finally {
             leaveInside();
         }
@@ -182,7 +183,7 @@ public class MyAdvices {
         }
     }
 
-    static void exitImpl(Class<?> myAdvicesClass, Class<?> originClazz, Object target, Executable originExecutable, Object[] ary, Object result) {
+    static void exitImpl(Class<?> myAdvicesClass, Class<?> originClazz, Object target, Executable originExecutable, Object[] ary, Object result, Throwable thrown) {
         ArrayList<Insert> inserts = Specs.getInserts(originExecutable);
         if (inserts == null) return;
 
@@ -209,7 +210,7 @@ public class MyAdvices {
 
             for (Insert insert : inserts) {
                 if (insert instanceof ExitInsert) {
-                    insert.onExit(hook, result);
+                    insert.onExit(hook, result, thrown);
                 }
             }
         } finally {
@@ -242,7 +243,7 @@ public class MyAdvices {
                 leftMyAdvices = true;
             }
             
-            String mcm = e.getModuleName() + "/" + e.getClassName() + "#" + e.getMethodName();
+            String mcm = e.getModuleName() + "/" + e.getClassName() + "::" + e.getMethodName();
             if (Specs.isPrivileged(mcm)) {
                 isPrivileged = true;
                 break outerloop;

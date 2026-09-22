@@ -86,7 +86,7 @@ public class DenyReflectionGetClassLoaderCheck extends AbstractDenyCheck {
 
     private class DenyOnExit extends ExitInsert {
         @Override
-        public void onExitImpl(Hook hook, Object result) {
+        public void onExitImpl(Hook hook, Object result, Throwable thrown) {
             boolean granted = false;
             if (result != null) {
                 Class<?> caller = Helper.getCallerClass();

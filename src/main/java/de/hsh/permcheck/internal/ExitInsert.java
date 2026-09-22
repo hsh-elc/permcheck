@@ -8,5 +8,5 @@ public abstract class ExitInsert extends Insert {
     }
 
     @Override
-    public abstract void onExitImpl(Hook hook, Object result);
+    public abstract void onExitImpl(Hook hook, Object result, Throwable thrown);
 }

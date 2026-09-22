@@ -195,6 +195,11 @@ public class Start {
                 "PermitFileCheck$RandomAccessFileConstructorInsert",
                 "PermitFileCheck$ProcessBuilderStartInsert",
                 "PermitFileCheck$FileCreateTempFileInsert",
+                "PermitNetworkCheck",
+                "PermitNetworkCheck$FirstArgSocketAddressInsert",
+                "PermitNetworkCheck$ReturnValSocketExitInsert",
+                "PermitNetworkCheck$FirstArgDatagramPacketEnterInsert",
+                "PermitNetworkCheck$FirstArgDatagramPacketExitInsert",
 
                 "VerboseCategory"
             };

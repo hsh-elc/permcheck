@@ -195,7 +195,7 @@ public class DenyReflectionAccessClassInNonExportedBootLayerPackageCheck extends
 
     private class DenyOnMultiReturnAndOnTargetsLoaderIsNullAndCallerLoaderIsNotNullInsert extends ExitInsert {
         @Override
-        public void onExitImpl(Hook hook, Object result) {
+        public void onExitImpl(Hook hook, Object result, Throwable thrown) {
             Class<?>[] classes = (Class<?>[])result;
             // If the return value contains only the class itself, then no check is required:
             if (classes == null || classes.length <= 1) return;
@@ -209,7 +209,7 @@ public class DenyReflectionAccessClassInNonExportedBootLayerPackageCheck extends
 
     private class DenyOnThisReturnAndOnTargetsLoaderIsNullAndCallerLoaderIsNotNullInsert extends ExitInsert {
         @Override
-        public void onExitImpl(Hook hook, Object result) {
+        public void onExitImpl(Hook hook, Object result, Throwable thrown) {
             Class<?> clazz = (Class<?>)result;
             // If the return value is the class itself, then no check is required:
             if (clazz == getTarget(hook, Class.class)) return;
@@ -223,7 +223,7 @@ public class DenyReflectionAccessClassInNonExportedBootLayerPackageCheck extends
 	
     private class DenyOnReturnedClassClassloaderIsNullAndCallerLoaderIsNotNullInsert extends ExitInsert {
         @Override
-        public void onExitImpl(Hook hook, Object result) {
+        public void onExitImpl(Hook hook, Object result, Throwable thrown) {
             Class<?> clazz = (Class<?>)result;
             if (clazz == null) return;
 

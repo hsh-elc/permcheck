@@ -1,9 +1,12 @@
 package main;
 
+import java.io.BufferedReader;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.lang.module.Configuration;
 import java.lang.module.ModuleFinder;
@@ -19,6 +22,7 @@ import java.nio.file.attribute.BasicFileAttributes;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import javax.tools.DiagnosticCollector;
 import javax.tools.FileObject;
@@ -30,6 +34,13 @@ import javax.tools.SimpleJavaFileObject;
 import javax.tools.StandardJavaFileManager;
 
 import org.junit.runner.JUnitCore;
+
+import java.io.IOException;
+import java.net.ConnectException;
+import java.net.DatagramPacket;
+import java.net.DatagramSocket;
+import java.net.Socket;
+import java.net.SocketTimeoutException;
 
 class Util {
 
@@ -185,6 +196,111 @@ class Util {
      */
     public static void fileCopy(Path src, Path dest) throws IOException {
         Files.copy(src, dest);
+    }
+
+
+    public static class UdpEchoServer extends Thread {
+        private int port;
+        private int timeoutSecs;
+        public AtomicBoolean running = new AtomicBoolean();
+        public UdpEchoServer(int port, int timeoutSecs) {
+            this.port = port;
+            this.timeoutSecs = timeoutSecs;
+        }
+        @Override public void run() {
+            new Thread(() -> {
+                try {
+                    Thread.sleep(timeoutSecs * 1000L);
+                } catch (InterruptedException e) {
+                }
+                // shutdown server after fixed maximum delay:
+                UdpEchoServer.this.interrupt();
+            }).start();
+            try (DatagramSocket socket = new DatagramSocket(port)) {
+                System.out.println("UDP Echo Server runs on port " + port + "...");
+                socket.setSoTimeout(1000);
+                byte[] buffer = new byte[1024];
+                running.set(true);
+                while (true) {
+                    if (Thread.interrupted()) break;
+                    DatagramPacket packet = new DatagramPacket(buffer, buffer.length);
+                    try {
+                        socket.receive(packet);
+                    } catch (SocketTimeoutException e) {
+                        continue;
+                    }
+                    // Empfangene Daten direkt an den Absender zurücksenden (Echo)
+                    DatagramPacket responsePacket = new DatagramPacket(
+                            packet.getData(),
+                            packet.getLength(),
+                            packet.getAddress(),
+                            packet.getPort()
+                    );
+                    socket.send(responsePacket);
+                }
+            } catch (IOException e) {
+                throw new AssertionError("Unexpected error in UdpEchoServer", e);
+            } finally {
+                System.out.println("Shutdown UDP Echo Server on port " + port);
+                running.set(false);
+            }
+        }
+    }    
+
+    public static class TcpClient extends Thread {
+        private int port;
+        private int trials;
+        public TcpClient(int port, int trials) {
+            this.port = port;
+            this.trials = trials;
+        }
+        @Override public void run() {
+            Socket s = null;
+            ConnectException ce = null;
+            try {
+                // try to connect n times
+                for (int i=1; i<=trials; i++) {
+                    try {
+                        Thread.sleep(1000L);
+                    } catch (InterruptedException e) {
+                    }
+                    try {
+                        System.out.print("TcpClient tries to connect to 'localhost:"+port+"' (trial "+i+"/"+trials+") ...");
+                        s = new Socket("localhost", port);
+                        System.out.println("connected!");
+                        break;
+                    } catch (ConnectException e) {
+                        System.out.println("failed!");
+                        ce = e;
+                    }
+                }
+
+                if (s == null) {
+                    throw new AssertionError("TcpClient cannot connect to 'localhost:" + port + "' (tried "+trials+" times)", ce);
+                }
+                System.out.println("TcpClient connected successfully to 'localhost:" + port + "'");
+
+                // Stream zum Lesen der Server-Antwort vorbereiten
+                InputStream input = s.getInputStream();
+                BufferedReader reader = new BufferedReader(new InputStreamReader(input));
+
+                // Zeile für Zeile lesen, was der Server sendet
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    System.out.println(line);
+                }
+            } catch (IOException e) {
+                throw new AssertionError("TcpClient cannot read from 'localhost:" + port + "'", e);
+            } finally {
+                if (s != null) {
+                    try {
+                        s.close();
+                    } catch (IOException e) {
+                        throw new AssertionError("TcpClient cannot close socket", e);
+                    }
+                }
+            }
+        }
     }
 
 

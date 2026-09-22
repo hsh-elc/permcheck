@@ -2,6 +2,7 @@ package main;
 
 import java.awt.Desktop;
 import java.awt.desktop.QuitStrategy;
+import java.io.BufferedReader;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
@@ -11,7 +12,11 @@ import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.FilenameFilter;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.OutputStream;
 import java.io.PrintStream;
+import java.io.PrintWriter;
 import java.io.RandomAccessFile;
 import java.lang.StackWalker.Option;
 import java.lang.annotation.ElementType;
@@ -32,8 +37,15 @@ import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.lang.reflect.Proxy;
 import java.math.BigInteger;
+import java.net.DatagramPacket;
+import java.net.DatagramSocket;
+import java.net.InetAddress;
 import java.net.NetworkInterface;
+import java.net.ServerSocket;
+import java.net.Socket;
 import java.net.SocketException;
+import java.net.SocketPermission;
+import java.net.SocketTimeoutException;
 import java.net.URL;
 import java.net.URLClassLoader;
 import java.nio.charset.Charset;
@@ -76,6 +88,7 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 import java.util.zip.ZipOutputStream;
 
+import javax.security.auth.callback.TextInputCallback;
 import javax.swing.JFrame;
 
 import org.junit.internal.Checks;
@@ -90,6 +103,8 @@ import de.hsh.permcheck.internal.PermcheckException;
 import de.hsh.permcheck.internal.Specs;
 import grader.Grader;
 import grader.TestRunner;
+import main.Util.TcpClient;
+import main.Util.UdpEchoServer;
 import net.bytebuddy.dynamic.ClassFileLocator;
 import net.bytebuddy.implementation.bytecode.Throw;
 import net.bytebuddy.pool.TypePool;
@@ -4631,6 +4646,181 @@ public class TestMain {
 
         return result;
 
+    }
+
+
+    @TestCaseFactory(relatedSpec = "deny.networkExceptSpecifiedPermissions")
+    private static List<TestCase> testNetwork() {
+        Class<? extends Throwable> expectedException = PermcheckException.class;
+        String expectedMsgPattern = ".*network is not granted.*";
+
+        UdpEchoServer udpEchoServer5005 = new UdpEchoServer(5005, 10);
+        udpEchoServer5005.start();
+        UdpEchoServer udpEchoServer6000 = new UdpEchoServer(6000, 10);
+        udpEchoServer6000.start();
+        final int SERVER_SOCKET_PORT = 8088;
+        TcpClient tcpClient8088 = new TcpClient(SERVER_SOCKET_PORT, 10); // try 10 times to connect and sleep 1 second between trials
+        tcpClient8088.start();
+
+
+        ArrayList<TestCase> result = new ArrayList<>();
+
+        class TestCaseSocketDenied extends TestCase {
+            public TestCaseSocketDenied() {
+                super(expectedException, expectedMsgPattern);
+            }
+            @Override public Double apply(Double x) {
+                try (Socket s = new Socket("portquiz.net", 671)) {
+                    // nothing to be done. Socket is closed automatically.
+                } catch (IOException e) {
+                    throw new AssertionError("Internal error in TestCase", e);
+                }
+                return 0.0;
+            }
+        }
+        result.add(new TestCaseSocketDenied());
+
+        class TestCaseSocketAllowed extends TestCase {
+            @Override public Double apply(Double x) {
+                try (Socket s = new Socket("portquiz.net", 669)) {
+                    // nothing to be done. Socket is closed automatically.
+                } catch (IOException e) {
+                    throw new AssertionError("Internal error in TestCase", e);
+                }
+                return Math.sqrt(x);
+            }
+        }
+        result.add(new TestCaseSocketAllowed());
+
+        class TestCaseServerSocketAllowed extends TestCase {
+            @Override public Double apply(Double x) {
+                try (ServerSocket serverSocket = new ServerSocket(SERVER_SOCKET_PORT, 50, InetAddress.getLoopbackAddress())) {
+                    serverSocket.setSoTimeout(10000);
+                    System.out.println("ServerSocket is now going to accept client connections on port " + SERVER_SOCKET_PORT + "...");
+
+                    try (Socket socket = serverSocket.accept()) {
+                        System.out.println("Client connected: " + socket.getInetAddress());
+
+                        // Daten an den Client senden
+                        OutputStream output = socket.getOutputStream();
+                        PrintWriter writer = new PrintWriter(output, true);
+
+                        // Einfache HTTP-Antwort senden
+                        writer.println("HTTP/1.1 200 OK");
+                        writer.println("Content-Type: text/plain; charset=UTF-8");
+                        writer.println(); // empty line = end of header
+                        writer.println("Hello from Java ServerSocket!");
+                    }
+                } catch (IOException e) {
+                    throw new AssertionError("Internal error in TestCase", e);
+                }
+                return Math.sqrt(x);
+            }
+        }
+        result.add(new TestCaseServerSocketAllowed());
+
+        class TestCaseServerSocketDenied extends TestCase {
+            public TestCaseServerSocketDenied() {
+                super(expectedException, expectedMsgPattern);
+            }
+            @Override public Double apply(Double x) {
+                // The following chould fail (listen on given port not allowed):
+                try (ServerSocket serverSocket = new ServerSocket(SERVER_SOCKET_PORT+1, 50, InetAddress.getLoopbackAddress())) {
+                    // ^ should fail with PermcheckException
+                } catch (IOException e) {
+                    throw new AssertionError("Internal error in TestCase", e);
+                }
+                return 0.0;
+            }
+        }
+        result.add(new TestCaseServerSocketDenied());
+
+        class TestCaseUdpAllowed extends TestCase {
+            @Override public Double apply(Double x) {
+                while (!udpEchoServer5005.running.get()) {
+                    try {
+                        Thread.sleep(500);
+                    } catch (InterruptedException e) {
+                    }
+                }
+                String messageToSend = "Hello UDP World!";
+                try (DatagramSocket socket = new DatagramSocket()) {
+                    socket.setSoTimeout(3000);
+                    InetAddress serverAddress = InetAddress.getByName("localhost");
+                    byte[] sendData = messageToSend.getBytes(StandardCharsets.UTF_8);
+                    DatagramPacket sendPacket = new DatagramPacket(
+                            sendData, 
+                            sendData.length, 
+                            serverAddress, 
+                            5005
+                    );
+                    socket.send(sendPacket);
+
+                    byte[] receiveBuffer = new byte[1024];
+                    DatagramPacket receivePacket = new DatagramPacket(receiveBuffer, receiveBuffer.length);
+                    socket.receive(receivePacket);
+                    @SuppressWarnings("unused")
+                    String receivedMessage = new String(
+                            receivePacket.getData(), 
+                            0, 
+                            receivePacket.getLength(), 
+                            StandardCharsets.UTF_8
+                    );
+                    return Math.sqrt(x);
+                } catch (IOException e) {
+                    throw new AssertionError("Internal error in TestCase", e);
+                } finally {
+                    udpEchoServer5005.interrupt(); // shut down
+                }
+            }
+        }
+        result.add(new TestCaseUdpAllowed());
+
+        class TestCaseUdpDenied extends TestCase {
+            public TestCaseUdpDenied() {
+                super(expectedException, expectedMsgPattern);
+            }
+            @Override public Double apply(Double x) {
+                while (!udpEchoServer6000.running.get()) {
+                    try {
+                        Thread.sleep(500);
+                    } catch (InterruptedException e) {
+                    }
+                }
+                String messageToSend = "Hello UDP World!";
+                try (DatagramSocket socket = new DatagramSocket()) {
+                    socket.setSoTimeout(3000);
+                    InetAddress serverAddress = InetAddress.getByName("localhost");
+                    byte[] sendData = messageToSend.getBytes(StandardCharsets.UTF_8);
+                    DatagramPacket sendPacket = new DatagramPacket(
+                            sendData, 
+                            sendData.length, 
+                            serverAddress, 
+                            6000 // not permitted port
+                    );
+                    socket.send(sendPacket);
+
+                    byte[] receiveBuffer = new byte[1024];
+                    DatagramPacket receivePacket = new DatagramPacket(receiveBuffer, receiveBuffer.length);
+                    socket.receive(receivePacket);
+                    @SuppressWarnings("unused")
+                    String receivedMessage = new String(
+                            receivePacket.getData(), 
+                            0, 
+                            receivePacket.getLength(), 
+                            StandardCharsets.UTF_8
+                    );
+                    return Math.sqrt(0);
+                } catch (IOException e) {
+                    throw new AssertionError("Internal error in TestCase", e);
+                } finally {
+                    udpEchoServer6000.interrupt(); // shut down
+                }
+            }
+        }
+        result.add(new TestCaseUdpDenied());
+
+        return result;
     }
 
     @TestCaseFactory(relatedSpec = "deny.propertyExceptSpecifiedPermissions")

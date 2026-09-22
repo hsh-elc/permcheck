@@ -133,6 +133,7 @@ public class Specs {
             new DenyContextSetIOCheck(),
             new DenyContextGetNetworkInformationCheck(),
             new PermitFileCheck(),
+            new PermitNetworkCheck(),
             new PermitPropertyCheck(),
             new PermitEnvCheck()
         };
@@ -144,6 +145,10 @@ public class Specs {
             lineNo++;
             if (row.startsWith("#") || row.startsWith("!"))
                 continue;
+            int hashIndex = row.indexOf('#');
+            if (hashIndex >= 0) {
+                row = row.substring(0, hashIndex);
+            }
             row = row.trim();
             if (row.isEmpty())
                 continue;

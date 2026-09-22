@@ -6,7 +6,7 @@ public abstract class EnterInsert extends Insert {
     public abstract void onEnterImpl(Hook hook);
 
     @Override
-    public void onExitImpl(Hook hook, Object result) {
+    public void onExitImpl(Hook hook, Object result, Throwable thrown) {
         throw new UnsupportedOperationException("unexpected onExit on an EnterInsert");
     }
 }

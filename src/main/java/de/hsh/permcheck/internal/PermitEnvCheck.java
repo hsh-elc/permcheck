@@ -1,8 +1,5 @@
 package de.hsh.permcheck.internal;
 
-import java.lang.reflect.Executable;
-import java.util.Map;
-
 public class PermitEnvCheck extends BasicPermitCheck {
     
     public PermitEnvCheck() {

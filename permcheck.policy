@@ -1,5 +1,6 @@
 # UTF-8 encoded file
 # Comment lines begin with # or ! in the first column
+# Trailing line comments start with a #
 # Empty lines are ignored
 # Keys must start in column one. The key is separated from the value with a single space character.
 # The rest of the line is the value of the key
@@ -81,6 +82,37 @@ deny.contextSetIO
 # Marker key to prevent leaking all information about local network interfaces
 deny.contextGetNetworkInformation
 
+# Marker key to initiate any network permission checks
+# If missing, no network access will be checked
+deny.networkExceptSpecifiedPermissions
+
+# Syntax: permit.network <host>:<portrange>
+# A permit.network represents access to a network via sockets. It consists of a host specification 
+# and a portrange
+#
+#    host = (hostname | IPv4address | iPv6reference) 
+#    portrange = portnumber | -portnumber | portnumber-[portnumber]
+# 
+# Both parts are manadatory.
+# The host is expressed as a DNS name, as a numerical IP address, or as "localhost" (for the local machine). 
+# The wildcard "*" may be included once in a DNS name host specification. If it is included, it must be in 
+# the leftmost position, as in "*.example.com".
+#
+# The format of the IPv6reference should follow that specified in RFC 2732: Format for Literal IPv6 Addresses in URLs:
+#
+#    ipv6reference = "[" IPv6address "]"
+# 
+# Sensible permissions could be:
+# - allow a local server:
+#   permit.network localhost:8080
+# - allow NTP access:
+#   permit.network pool.ntp.org:123
+
+permit.network *.ntp.org:123
+permit.network customdevserver.example.org:8000-8090
+permit.network *quiz.net:650-670   # portquiz.net
+permit.network localhost:-5010
+permit.network localhost:8088
 
 
 # Marker key to initiate any file permission checks
@@ -164,10 +196,14 @@ permit.property jdk.nio.file.WatchService.maxEventsPerPoll | read
 
 # These ones are needed for network access classes static initializers:
 permit.property jdk.net.usePlainDatagramSocketImpl | read
+permit.property jdk.net.usePlainSocketImpl | read
 permit.property java.net.preferIPv6Addresses | read
+permit.property java.net.useSystemProxies | read
 permit.property sun.net.useExclusiveBind | read
 permit.property jdk.net.useFastTcpLoopback | read
 permit.property sun.net.maxDatagramSockets | read
+permit.property socksProxyHost | read
+permit.property socksProxyPort | read
 
 # Further permissions, that could be granted to student submissions,
 # but this reveals already information about the grading system:
@@ -231,83 +267,87 @@ distrust.regex main\.TestMain\$[0-9]*TestCase[^\$]*
 # concept of the SecurityManager.
 #
 # Privileges are specified in the format
-#   privilege.plain <module>/<fully.qualified.classname>#<methodname>
+#   privilege.plain <module>/<fully.qualified.classname>::<methodname>
 # e. g.
-#   privilege.plain java.base/java.security.Security#initialize
+#   privilege.plain java.base/java.security.Security::initialize
 #
-# Constructors are specified literally as #<init>
-# Static initializers are specified literally as #<clinit>
+# Constructors are specified literally as ::<init>
+# Static initializers are specified literally as ::<clinit>
 
-privilege.plain java.base/java.lang.Class#getEnumConstantsShared
-privilege.plain java.base/java.util.ResourceBundle#getLoader
-privilege.plain java.base/java.util.ResourceBundle#loadBundle
-privilege.plain java.base/sun.util.resources.Bundles#loadBundleFromProviders
-privilege.plain java.base/sun.util.resources.LocaleData#getBundle
-privilege.plain java.base/sun.util.locale.provider.LocaleProviderAdapter#<clinit>
-privilege.plain java.base/sun.util.cldr.CLDRLocaleProviderAdapter#<init>
-privilege.plain java.base/sun.util.locale.provider.LocaleResources#<clinit>
-privilege.plain java.base/sun.util.locale.provider.LocaleProviderAdapter#forType
-privilege.plain java.base/java.lang.ProcessHandleImpl#<clinit>
-privilege.plain java.base/java.lang.ProcessImpl#<init>
-privilege.plain java.base/java.lang.ProcessImpl#initStreams
-privilege.plain java.base/java.lang.ProcessImpl$Platform#launchMechanism
-privilege.plain java.base/java.lang.ProcessImpl#launchMechanism
-privilege.plain java.base/java.lang.invoke.InnerClassLambdaMetafactory#buildCallSite                
-privilege.plain java.base/java.lang.StackWalker#<clinit>
-privilege.plain java.base/java.lang.System#getLogger
-privilege.plain java.base/java.lang.Thread#isCCLOverridden
-privilege.plain java.base/java.net.InetAddress#<clinit>
-privilege.plain java.base/sun.net.InetAddressCachePolicy#<clinit>
-privilege.plain java.base/java.util.concurrent.atomic.Striped64#<clinit>
-privilege.plain java.base/sun.nio.ch.DatagramSocketAdaptor$DatagramPackets#<clinit>
-privilege.plain java.base/sun.nio.ch.DatagramSocketAdaptor$DatagramSockets#<clinit>
-privilege.plain java.base/java.io.ObjectStreamClass#<init>
-privilege.plain java.base/java.util.EnumSet#noneOf
-privilege.plain java.base/java.util.Scanner#<clinit>
-privilege.plain java.base/java.security.Security#initialize
-privilege.plain java.base/java.security.SecureRandom#<init>
-privilege.plain java.base/java.security.SecureRandom#next
-privilege.plain java.base/java.text.DateFormatSymbols#<init>
-privilege.plain java.base/jdk.internal.util.random.RandomSupport#secureRandomSeedRequested
-privilege.plain java.base/jdk.internal.logger.AbstractLoggerWrapper#isLoggable
-privilege.plain java.base/jdk.internal.loader.BuiltinClassLoader#findClassOnClassPathOrNull
-privilege.plain java.base/jdk.internal.loader.BootLoader#loadLibrary
-privilege.plain java.base/sun.util.calendar.ZoneInfoFile#<clinit>
-#privilege.plain java.base/sun.security.action.GetPropertyAction#privilegedGetProperty <-- shouldn't include any deprecated methods
-#privilege.plain java.base/java.security.AccessController#doPrivileged <-- shouldn't include any deprecated methods
-privilege.plain null/org.junit.runner.JUnitCore#run
-privilege.plain java.compiler/javax.tools.ToolProvider#getSystemJavaCompiler
-privilege.plain java.compiler/javax.tools.JavaCompiler#getStandardFileManager
-privilege.plain jdk.compiler/com.sun.tools.javac.api.JavacTool#getStandardFileManager
-privilege.plain jdk.compiler/com.sun.tools.javac.api.JavacTaskImpl#call
-privilege.regex javafx\.base/[A-Za-z\$\.]+#<clinit>
-privilege.regex javafx\.graphics/[A-Za-z\$\.]+#<clinit>
-privilege.regex javafx\.controls/[A-Za-z\$\.]+#<clinit>
-privilege.plain javafx.graphics/javafx.scene.Node#processCSS
-privilege.plain javafx.graphics/javafx.stage.Window#show
-privilege.plain javafx.graphics/com.sun.javafx.font.PrismFontFactory#getFontFactory
-privilege.plain javafx.graphics/com.sun.javafx.font.PrismFontFactory#getFontResource
-privilege.plain javafx.graphics/com.sun.javafx.font.PrismFontFactory#getDefaultFontResource
-privilege.regex java\.desktop/javax\.swing\.[A-Za-z\$\.]+#<clinit>
-privilege.regex java\.desktop/java\.awt\.[A-Za-z\$\.]+#<clinit>
-privilege.plain java.desktop/java.awt.Desktop#isDesktopSupported
-privilege.plain java.desktop/java.awt.Desktop#getDesktop
-privilege.plain java.desktop/javax.swing.UIManager#loadSwingProperties
-privilege.plain java.desktop/javax.swing.JFrame#<init>
+privilege.plain java.base/java.lang.Class::getEnumConstantsShared
+privilege.plain java.base/java.util.ResourceBundle::getLoader
+privilege.plain java.base/java.util.ResourceBundle::loadBundle
+privilege.plain java.base/sun.util.resources.Bundles::loadBundleFromProviders
+privilege.plain java.base/sun.util.resources.LocaleData::getBundle
+privilege.plain java.base/sun.util.locale.provider.LocaleProviderAdapter::<clinit>
+privilege.plain java.base/sun.util.cldr.CLDRLocaleProviderAdapter::<init>
+privilege.plain java.base/sun.util.locale.provider.LocaleResources::<clinit>
+privilege.plain java.base/sun.util.locale.provider.LocaleProviderAdapter::forType
+privilege.plain java.base/java.lang.ProcessHandleImpl::<clinit>
+privilege.plain java.base/java.lang.ProcessImpl::<init>
+privilege.plain java.base/java.lang.ProcessImpl::initStreams
+privilege.plain java.base/java.lang.ProcessImpl$Platform::launchMechanism
+privilege.plain java.base/java.lang.ProcessImpl::launchMechanism
+privilege.plain java.base/java.lang.invoke.InnerClassLambdaMetafactory::buildCallSite                
+privilege.plain java.base/java.lang.StackWalker::<clinit>
+privilege.plain java.base/java.lang.System::getLogger
+privilege.plain java.base/java.lang.Thread::isCCLOverridden
+privilege.plain java.base/java.net.InetAddress::<clinit>
+privilege.plain java.base/sun.net.InetAddressCachePolicy::<clinit>
+privilege.plain java.base/java.util.concurrent.atomic.Striped64::<clinit>
+privilege.plain java.base/sun.nio.ch.DatagramSocketAdaptor$DatagramPackets::<clinit>
+privilege.plain java.base/sun.nio.ch.DatagramSocketAdaptor$DatagramSockets::<clinit>
+privilege.plain java.base/java.io.ObjectStreamClass::<init>
+privilege.plain java.base/java.util.EnumSet::noneOf
+privilege.plain java.base/java.util.Scanner::<clinit>
+privilege.plain java.base/java.security.Security::initialize
+privilege.plain java.base/java.security.SecureRandom::<init>
+privilege.plain java.base/java.security.SecureRandom::next
+privilege.plain java.base/java.text.DateFormatSymbols::<init>
+privilege.plain java.base/jdk.internal.util.random.RandomSupport::secureRandomSeedRequested
+privilege.plain java.base/jdk.internal.logger.AbstractLoggerWrapper::isLoggable
+privilege.plain java.base/jdk.internal.loader.BuiltinClassLoader::findClassOnClassPathOrNull
+privilege.plain java.base/jdk.internal.loader.BootLoader::loadLibrary
+privilege.plain java.base/sun.util.calendar.ZoneInfoFile::<clinit>
+#privilege.plain java.base/sun.security.action.GetPropertyAction::privilegedGetProperty <-- shouldn't include any deprecated methods
+#privilege.plain java.base/java.security.AccessController::doPrivileged <-- shouldn't include any deprecated methods
+privilege.plain null/org.junit.runner.JUnitCore::run
+privilege.plain java.compiler/javax.tools.ToolProvider::getSystemJavaCompiler
+privilege.plain java.compiler/javax.tools.JavaCompiler::getStandardFileManager
+privilege.plain jdk.compiler/com.sun.tools.javac.api.JavacTool::getStandardFileManager
+privilege.plain jdk.compiler/com.sun.tools.javac.api.JavacTaskImpl::call
+privilege.regex javafx\.base/[A-Za-z\$\.]+::<clinit>
+privilege.regex javafx\.graphics/[A-Za-z\$\.]+::<clinit>
+privilege.regex javafx\.controls/[A-Za-z\$\.]+::<clinit>
+privilege.plain javafx.graphics/javafx.scene.Node::processCSS
+privilege.plain javafx.graphics/javafx.stage.Window::show
+privilege.plain javafx.graphics/com.sun.javafx.font.PrismFontFactory::getFontFactory
+privilege.plain javafx.graphics/com.sun.javafx.font.PrismFontFactory::getFontResource
+privilege.plain javafx.graphics/com.sun.javafx.font.PrismFontFactory::getDefaultFontResource
+privilege.regex java\.desktop/javax\.swing\.[A-Za-z\$\.]+::<clinit>
+privilege.regex java\.desktop/java\.awt\.[A-Za-z\$\.]+::<clinit>
+privilege.plain java.desktop/java.awt.Desktop::isDesktopSupported
+privilege.plain java.desktop/java.awt.Desktop::getDesktop
+privilege.plain java.desktop/javax.swing.UIManager::loadSwingProperties
+privilege.plain java.desktop/javax.swing.JFrame::<init>
+privilege.plain jdk.net/jdk.net.WindowsSocketOptions::<clinit>
+privilege.plain jdk.net/jdk.net.LinuxSocketOptions::<clinit>
+privilege.plain jdk.net/jdk.net.MacOSXSocketOptions::<clinit>
+privilege.plain java.base/sun.net.util.SocketExceptions::<clinit>
 
 # We assign privileges to many test factory methods, since these methods need
 # to prepare files and classes before instantiating TestCase objects.
 # The TestCase objects themselves are not privileged, since these operate
-# in null/main.TestMain$<N>TestCase*#apply
-privilege.plain null/main.TestMain#collectTestCaseFactoryMethods
-privilege.plain null/main.TestMain#runTestCase
-privilege.regex null/main.TestMain#test[A-Za-z]+
+# in null/main.TestMain$<N>TestCase*::apply
+privilege.plain null/main.TestMain::collectTestCaseFactoryMethods
+privilege.plain null/main.TestMain::runTestCase
+privilege.regex null/main.TestMain::test[A-Za-z]+
 # Strictly speaking, these methods wouldn't need to be privileged, because they 
 # aren't called from untrusted code.
 
 # The following methods from the Util class are intentionally called from within test 
 # cases and should get full privileges:
-privilege.plain null/main.Util#fileCopy
+privilege.plain null/main.Util::fileCopy
 
 # In a real autograder scenario, the grader compiles a student submission and loads
 # the resulting bytecode. For this, the grader code needs permissions to write
@@ -315,7 +355,7 @@ privilege.plain null/main.Util#fileCopy
 # as "permit.file", it is easier to specify the grader code as "privilege", something
 # like this:
 # 
-#  privilege.regex null/com.grader.Grader#[\p{L}\p{Nl}\p{Pc}][\p{L}\p{Nl}\p{Pc}\p{Nd}\p{Mc}\p{Mn}\p{Cf}]*
+#  privilege.regex null/com.grader.Grader::[\p{L}\p{Nl}\p{Pc}][\p{L}\p{Nl}\p{Pc}\p{Nd}\p{Mc}\p{Mn}\p{Cf}]*
 # 
 # The specified regex is automatically enclosed in ^...$ by the permcheck library.
 # We construct a regular expression for an arbitrary method name:

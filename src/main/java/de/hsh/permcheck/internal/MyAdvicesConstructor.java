@@ -26,7 +26,7 @@ public class MyAdvicesConstructor {
         if (!Specs.isActive()) return;
         if (!MyAdvices.tryToGetInside()) return; // cycle
         try {
-            MyAdvices.exitImpl(MyAdvicesConstructor.class, originClazz, target, originExecutable, ary, null);
+            MyAdvices.exitImpl(MyAdvicesConstructor.class, originClazz, target, originExecutable, ary, null, null);
         } finally {
             MyAdvices.leaveInside();
         }
