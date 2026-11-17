@@ -156,7 +156,7 @@ public class PermitFileCheck extends AbstractPermitCheck {
     
     @Override
     protected boolean matches(String pattern, String pathStr) {
-        // Falls das Pattern noch kein "glob:" davor hat, fügen wir es hinzu
+        // Falls das Pattern noch kein "glob:" davor hat, fuegen wir es hinzu
         String syntaxAndPattern = pattern.startsWith("glob:") ? pattern : "glob:" + pattern;
         
         PathMatcher matcher = FileSystems.getDefault().getPathMatcher(syntaxAndPattern);
@@ -168,7 +168,7 @@ public class PermitFileCheck extends AbstractPermitCheck {
     private static String getCanonicalPathFromString(String p) {
         if (p == null) return null;
 
-        // Um weiter unten File.getCanonicalPath aufrufen zu können, müssen wir vorher
+        // Um weiter unten File.getCanonicalPath aufrufen zu koennen, muessen wir vorher
         // alle Pattern-Zeichen maskieren, die in einem echten Pfad nichts zu suchen haben.
 
         long n = random.nextLong();

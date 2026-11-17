@@ -599,9 +599,9 @@ public class TestMain {
                 }
                 @Override public Double apply(Double x) {
                     // Angriff: Starte einen Kind-Prozess, der 5 Sekunden nichts tut.
-                    // Der Kind-Prozess könnte noch laufen oder schon beendet sein.
+                    // Der Kind-Prozess koennte noch laufen oder schon beendet sein.
                     // Hole den Parent des Parent des Kindprozesses.
-                    // Das ist dann der Parent der ausführenden JVM, vermutlich eine Shell.
+                    // Das ist dann der Parent der ausfuehrenden JVM, vermutlich eine Shell.
                     // Kille die Shell und damit auch die JVM.
                     ProcessHandle ph = sleepProcess.toHandle(); // should fail
                     @SuppressWarnings("unused")
@@ -2887,7 +2887,7 @@ public class TestMain {
         }
         result.add(new TestCaseClassGetFieldShouldDenyAccessClassInNonExportedBootLayerPackage());
 		
-        // Lasse ich weg, weil es zu StackOverflows führt:
+        // Lasse ich weg, weil es zu StackOverflows fuehrt:
         // class TestCaseClassGetMethodShouldDenyAccessClassInNonExportedBootLayerPackage extends TestCase {
         //     public TestCaseClassGetMethodShouldDenyAccessClassInNonExportedBootLayerPackage() {
         //         super(expectedException, expectedMsgPattern);
@@ -3016,9 +3016,9 @@ public class TestMain {
         result.add(new TestCaseMethodHandlesLookupInClassFindStaticShouldDenyAccessClassInNonExportedBootLayerPackage());
 
 
-        // Hier fehlen etliche Testfälle für MethodHandles.Lookup. Da diese für Klassen aus einem Non-exported BootLayer-Package
-        // realisiert werden müssten, ist das aufwändig, wenn nicht gar unmöglich. Wir lassen diese Testfälle einfach weg.
-        // Ähnliche Testfälle wurden für alle Lookup-Methoden in der Methode testReflectionAccessDeclaredMembers
+        // Hier fehlen etliche Testfaelle fuer MethodHandles.Lookup. Da diese fuer Klassen aus einem Non-exported BootLayer-Package
+        // realisiert werden muessten, ist das aufwaendig, wenn nicht gar unmoeglich. Wir lassen diese Testfaelle einfach weg.
+        // Aehnliche Testfaelle wurden fuer alle Lookup-Methoden in der Methode testReflectionAccessDeclaredMembers
         // realisiert.
 
         return result;

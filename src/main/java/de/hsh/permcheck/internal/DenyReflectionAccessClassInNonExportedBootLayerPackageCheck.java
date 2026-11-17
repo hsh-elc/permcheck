@@ -26,8 +26,8 @@ public class DenyReflectionAccessClassInNonExportedBootLayerPackageCheck extends
             Class.forName("jdk.internal.loader.Loader").getDeclaredMethod("loadClass", String.class, boolean.class),
             denyFirstArgOnNonExportedBootLayerPackage() );
 
-        // Class.getPermittedSubclasses() liefert nur dann ein nichtleeres Array, wenn es für eine "sealed" Class aufgerufen wird.
-        // Fraglich ist, ob es überhaupt eine Klasse gibt, deren permitted subclasses in einem non exported bootlayer package wohnen.
+        // Class.getPermittedSubclasses() liefert nur dann ein nichtleeres Array, wenn es fuer eine "sealed" Class aufgerufen wird.
+        // Fraglich ist, ob es ueberhaupt eine Klasse gibt, deren permitted subclasses in einem non exported bootlayer package wohnen.
         // Ich lasse diese Option offen als sehr unwahrscheinliches Einfallstor:
         //registry.put(
         //    Class.class.getDeclaredMethod("getPermittedSubclasses"),
@@ -87,7 +87,7 @@ public class DenyReflectionAccessClassInNonExportedBootLayerPackageCheck extends
             Class.class.getDeclaredMethod("getField", String.class),
             denyOnTargetClassloaderIsNullAndCallerLoaderIsNotNull() );
 
-        // Das hier führt zu StackOverflows:
+        // Das hier fuehrt zu StackOverflows:
         // registry.put(
         //     Class.class.getDeclaredMethod("getMethod", String.class, Class[].class),
         //     denyOnTargetClassloaderIsNullAndCallerLoaderIsNotNull() );

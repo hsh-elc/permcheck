@@ -137,7 +137,7 @@ class Util {
             ClassLoader parentLoader = ClassLoader.getSystemClassLoader();
             ModuleLayer newLayer = parentLayer.defineModulesWithOneLoader(configuration, parentLoader);
 
-            // Den ClassLoader für das spezifische Modul abrufen und überprüfen
+            // Den ClassLoader fuer das spezifische Modul abrufen und ueberpruefen
             jdkInternalLoader = newLayer.findLoader(moduleName);
 
             String loaderType = jdkInternalLoader.getClass().getName();
@@ -229,7 +229,7 @@ class Util {
                     } catch (SocketTimeoutException e) {
                         continue;
                     }
-                    // Empfangene Daten direkt an den Absender zurücksenden (Echo)
+                    // Empfangene Daten direkt an den Absender zuruecksenden (Echo)
                     DatagramPacket responsePacket = new DatagramPacket(
                             packet.getData(),
                             packet.getLength(),
@@ -284,7 +284,7 @@ class Util {
                 InputStream input = s.getInputStream();
                 BufferedReader reader = new BufferedReader(new InputStreamReader(input));
 
-                // Zeile für Zeile lesen, was der Server sendet
+                // Zeile fuer Zeile lesen, was der Server sendet
                 String line;
                 while ((line = reader.readLine()) != null) {
                     System.out.println(line);
